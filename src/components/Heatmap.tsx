@@ -1,12 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import clsx from 'clsx';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isAfter, isSameDay } from 'date-fns';
 
-interface HeatmapProps {
-  data: { [key: string]: number };
+interface DailyTaskInfo {
+  date: string;
+  completedTasks: number;
+  totalTasks: number;
+  completedTaskIds: string[];
+  totalTaskIds: string[];
 }
 
-export function Heatmap({ data }: HeatmapProps) {
+interface HeatmapProps {
+  data: { [key: string]: number };
+  dailyData: DailyTaskInfo[];
+  tasks: { id: string; text: string; priority: 'high' | 'medium' | 'low' }[];
+}
+
+export function Heatmap({ data, dailyData, tasks }: HeatmapProps) {
+  const [selectedDay, setSelectedDay] = useState<DailyTaskInfo | null>(null);
+
   const getColor = (count: number) => {
     if (count === 0) return 'bg-gray-700';
     if (count <= 1) return 'bg-green-900/80';
@@ -35,6 +47,14 @@ export function Heatmap({ data }: HeatmapProps) {
     adjustedToday.setDate(adjustedToday.getDate() - 1);
   }
 
+  const handleDayClick = (day: Date) => {
+    const dayStr = format(day, 'yyyy-MM-dd');
+    const dayData = dailyData.find(d => d.date === dayStr);
+    if (dayData) {
+      setSelectedDay(dayData);
+    }
+  };
+
   return (
     <div className="mt-5">
       <h3 className="text-lg font-semibold mb-4">
@@ -58,6 +78,7 @@ export function Heatmap({ data }: HeatmapProps) {
               )}
               style={{ opacity }}
               title={`${format(day, 'MMM d')}: ${taskCount} task${taskCount !== 1 ? 's' : ''} completed`}
+              onClick={() => handleDayClick(day)}
             >
               <div className="flex items-center justify-center h-full text-xs text-gray-400">
                 {format(day, 'd')}
@@ -66,18 +87,59 @@ export function Heatmap({ data }: HeatmapProps) {
           );
         })}
       </div>
-      {/* <div className="mt-4 flex items-center justify-end gap-2 text-xs text-gray-400">
-        <span>Less</span>
-        <div className="flex gap-1">
-          {[0, 1, 2, 3, 4, 5, 6, 7].map((count) => (
-            <div
-              key={count}
-              className={clsx('w-4 h-4 rounded', getColor(count))}
-            />
-          ))}
+
+      {/* Modal for showing daily task information */}
+      {selectedDay && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold">
+                {format(new Date(selectedDay.date), 'MMMM d, yyyy')}
+              </h3>
+              <button
+                onClick={() => setSelectedDay(null)}
+                className="text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-gray-400">Completion Rate</p>
+                <p className="text-2xl font-bold">
+                  {Math.round((selectedDay.completedTasks / selectedDay.totalTasks) * 100)}%
+                </p>
+              </div>
+              
+              <div>
+                <p className="text-gray-400">Completed Tasks</p>
+                <div className="mt-2 space-y-2">
+                  {selectedDay.completedTaskIds.map(taskId => {
+                    const task = tasks.find(t => t.id === taskId);
+                    return task ? (
+                      <div key={taskId} className="flex items-center gap-2">
+                        <div className={clsx(
+                          'w-2 h-2 rounded-full',
+                          task.priority === 'high' ? 'bg-red-500' :
+                          task.priority === 'medium' ? 'bg-yellow-500' :
+                          'bg-green-500'
+                        )} />
+                        <span>{task.text}</span>
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+              
+              <div>
+                <p className="text-gray-400">Total Tasks</p>
+                <p className="text-lg">{selectedDay.totalTasks}</p>
+              </div>
+            </div>
+          </div>
         </div>
-        <span>More</span>
-      </div> */}
+      )}
     </div>
   );
 }

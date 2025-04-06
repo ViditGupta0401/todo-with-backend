@@ -7,6 +7,7 @@ import type { Task, Filter } from './types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
+const DAILY_DATA_KEY = 'todo-tracker-daily-data';
 
 interface StoredTask {
   id: string;
@@ -16,6 +17,14 @@ interface StoredTask {
   timestamp: string;
   isRepeating: boolean;
   lastCompleted?: string;
+}
+
+interface DailyData {
+  date: string;
+  completedTasks: number;
+  totalTasks: number;
+  completedTaskIds: string[];
+  totalTaskIds: string[];
 }
 
 function App() {
@@ -39,12 +48,64 @@ function App() {
     return [];
   });
 
+  const [dailyData, setDailyData] = useState<DailyData[]>(() => {
+    const savedData = localStorage.getItem(DAILY_DATA_KEY);
+    return savedData ? JSON.parse(savedData) : [];
+  });
+
   const [filter, setFilter] = useState<Filter>('all');
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Save tasks to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  }, [tasks]);
+
+  // Save daily data to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(DAILY_DATA_KEY, JSON.stringify(dailyData));
+  }, [dailyData]);
+
+  // Update daily data when tasks change
+  useEffect(() => {
+    const now = new Date();
+    const today = new Date(now);
+    if (now.getHours() < 5) {
+      today.setDate(today.getDate() - 1);
+    }
+    const todayStr = format(today, 'yyyy-MM-dd');
+
+    const completedTasks = tasks.filter(task => {
+      const taskDate = new Date(task.completed ? task.timestamp : task.lastCompleted || 0);
+      const taskDay = new Date(taskDate);
+      if (taskDate.getHours() < 5) {
+        taskDay.setDate(taskDay.getDate() - 1);
+      }
+      return format(taskDay, 'yyyy-MM-dd') === todayStr && task.completed;
+    });
+
+    setDailyData(prevData => {
+      const existingDayIndex = prevData.findIndex(d => d.date === todayStr);
+      if (existingDayIndex >= 0) {
+        const newData = [...prevData];
+        newData[existingDayIndex] = {
+          date: todayStr,
+          completedTasks: completedTasks.length,
+          totalTasks: tasks.length,
+          completedTaskIds: completedTasks.map(task => task.id),
+          totalTaskIds: tasks.map(task => task.id)
+        };
+        return newData;
+      } else {
+        return [...prevData, {
+          date: todayStr,
+          completedTasks: completedTasks.length,
+          totalTasks: tasks.length,
+          completedTaskIds: completedTasks.map(task => task.id),
+          totalTaskIds: tasks.map(task => task.id)
+        }];
+      }
+    });
   }, [tasks]);
 
   // Update time every second
@@ -63,23 +124,46 @@ function App() {
       const fiveAM = new Date(now);
       fiveAM.setHours(5, 0, 0, 0);
       
-      setTasks(prevTasks => 
-        prevTasks.map(task => {
-          if (task.isRepeating && task.completed) {
-            const lastCompleted = task.lastCompleted ? new Date(task.lastCompleted) : null;
-            const shouldReset = !lastCompleted || lastCompleted < fiveAM;
-            
-            if (shouldReset) {
-              return {
-                ...task,
-                completed: false,
-                lastCompleted: task.completed ? Date.now() : task.lastCompleted
-              };
+      // Only reset if it's exactly 5 AM
+      if (now.getHours() === 5 && now.getMinutes() === 0) {
+        setTasks(prevTasks => {
+          // Get all repeating tasks that were completed yesterday
+          const yesterdayRepeatingTasks = prevTasks.filter(task => 
+            task.isRepeating && 
+            task.completed && 
+            task.lastCompleted && 
+            new Date(task.lastCompleted) < fiveAM
+          );
+
+          // Reset completed repeating tasks
+          const resetTasks = prevTasks.map(task => {
+            if (task.isRepeating && task.completed) {
+              const lastCompleted = task.lastCompleted ? new Date(task.lastCompleted) : null;
+              const shouldReset = !lastCompleted || lastCompleted < fiveAM;
+              
+              if (shouldReset) {
+                return {
+                  ...task,
+                  completed: false,
+                  lastCompleted: task.completed ? Date.now() : task.lastCompleted
+                };
+              }
             }
-          }
-          return task;
-        })
-      );
+            return task;
+          });
+
+          // Add new instances of completed repeating tasks for today
+          const newTasks = yesterdayRepeatingTasks.map(task => ({
+            ...task,
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            completed: false,
+            timestamp: Date.now(),
+            lastCompleted: undefined
+          }));
+
+          return [...resetTasks, ...newTasks];
+        });
+      }
     };
 
     // Check every minute
@@ -100,24 +184,12 @@ function App() {
     
     days.forEach(day => {
       const dateKey = format(day, 'yyyy-MM-dd');
-      const completedTasks = tasks.filter(task => {
-        const taskDate = new Date(task.timestamp);
-        const taskDay = new Date(taskDate);
-        
-        // If task was completed before 5 AM, count it as part of the previous day
-        if (taskDate.getHours() < 5) {
-          taskDay.setDate(taskDay.getDate() - 1);
-        }
-        
-        // Format the adjusted date for comparison
-        const taskDateKey = format(taskDay, 'yyyy-MM-dd');
-        return taskDateKey === dateKey && task.completed;
-      });
-      data[dateKey] = completedTasks.length;
+      const dayData = dailyData.find(d => d.date === dateKey);
+      data[dateKey] = dayData?.completedTasks || 0;
     });
     
     return data;
-  }, [tasks, currentTime]);
+  }, [dailyData, currentTime]);
 
   // Calculate real analytics data
   const analyticsData = useMemo(() => {
@@ -227,11 +299,31 @@ function App() {
     setTasks(newTasks);
   };
 
-  const filteredTasks = tasks.filter(task => {
-    if (filter === 'active') return !task.completed;
-    if (filter === 'completed') return task.completed;
-    return true;
-  });
+  // Filter tasks to show only today's repeating tasks
+  const filteredTasks = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now);
+    if (now.getHours() < 5) {
+      today.setDate(today.getDate() - 1);
+    }
+    const todayStr = format(today, 'yyyy-MM-dd');
+
+    return tasks.filter(task => {
+      if (filter === 'active') {
+        if (task.isRepeating) {
+          const taskDate = new Date(task.timestamp);
+          const taskDay = new Date(taskDate);
+          if (taskDate.getHours() < 5) {
+            taskDay.setDate(taskDay.getDate() - 1);
+          }
+          return !task.completed && format(taskDay, 'yyyy-MM-dd') === todayStr;
+        }
+        return !task.completed;
+      }
+      if (filter === 'completed') return task.completed;
+      return true;
+    });
+  }, [tasks, filter]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
@@ -276,7 +368,11 @@ function App() {
         <div className="col-span-2 w-[80%] bg-gray-800 p-6 rounded-xl">
           <h2 className="text-2xl font-bold mb-6">Analytics</h2>
           <Analytics data={analyticsData} />
-          <Heatmap data={heatmapData} />
+          <Heatmap 
+            data={heatmapData} 
+            dailyData={dailyData}
+            tasks={tasks}
+          />
         </div>
       </div>
     </div>
