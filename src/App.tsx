@@ -24,7 +24,8 @@ interface DailyData {
   completedTasks: number;
   totalTasks: number;
   completedTaskIds: string[];
-  totalTaskIds: string[];
+  repeatingTaskIds: string[];
+  nonRepeatingTaskIds: string[];
 }
 
 function App() {
@@ -34,12 +35,27 @@ function App() {
     if (savedTasks) {
       try {
         const parsedTasks = JSON.parse(savedTasks) as StoredTask[];
-        // Convert timestamp strings back to numbers
+        const now = new Date();
+        const today = new Date(now);
+        if (now.getHours() < 5) {
+          today.setDate(today.getDate() - 1);
+        }
+        const todayStr = format(today, 'yyyy-MM-dd');
+
+        // Convert timestamp strings back to numbers and ensure all required fields
         return parsedTasks.map(task => ({
           ...task,
           timestamp: Number(task.timestamp),
-          lastCompleted: task.lastCompleted ? Number(task.lastCompleted) : undefined
-        }));
+          lastCompleted: task.lastCompleted ? Number(task.lastCompleted) : undefined,
+          isRepeating: task.isRepeating || false,
+          priority: task.priority || 'medium',
+          completed: false // Reset all tasks to incomplete for the new day
+        })).filter(task => {
+          // Keep repeating tasks and today's non-repeating tasks
+          if (task.isRepeating) return true;
+          const taskDate = format(new Date(task.timestamp), 'yyyy-MM-dd');
+          return taskDate === todayStr;
+        });
       } catch (error) {
         console.error('Error loading tasks from localStorage:', error);
         return [];
@@ -50,7 +66,15 @@ function App() {
 
   const [dailyData, setDailyData] = useState<DailyData[]>(() => {
     const savedData = localStorage.getItem(DAILY_DATA_KEY);
-    return savedData ? JSON.parse(savedData) : [];
+    if (savedData) {
+      try {
+        return JSON.parse(savedData);
+      } catch (error) {
+        console.error('Error loading daily data from localStorage:', error);
+        return [];
+      }
+    }
+    return [];
   });
 
   const [filter, setFilter] = useState<Filter>('all');
@@ -58,13 +82,50 @@ function App() {
 
   // Save tasks to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    } catch (error) {
+      console.error('Error saving tasks to localStorage:', error);
+    }
   }, [tasks]);
 
   // Save daily data to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem(DAILY_DATA_KEY, JSON.stringify(dailyData));
+    try {
+      localStorage.setItem(DAILY_DATA_KEY, JSON.stringify(dailyData));
+    } catch (error) {
+      console.error('Error saving daily data to localStorage:', error);
+    }
   }, [dailyData]);
+
+  // Load data from localStorage on component mount
+  useEffect(() => {
+    const loadData = () => {
+      try {
+        const savedTasks = localStorage.getItem(STORAGE_KEY);
+        const savedDailyData = localStorage.getItem(DAILY_DATA_KEY);
+
+        if (savedTasks) {
+          const parsedTasks = JSON.parse(savedTasks) as StoredTask[];
+          setTasks(parsedTasks.map(task => ({
+            ...task,
+            timestamp: Number(task.timestamp),
+            lastCompleted: task.lastCompleted ? Number(task.lastCompleted) : undefined,
+            isRepeating: task.isRepeating || false,
+            priority: task.priority || 'medium'
+          })));
+        }
+
+        if (savedDailyData) {
+          setDailyData(JSON.parse(savedDailyData));
+        }
+      } catch (error) {
+        console.error('Error loading data from localStorage:', error);
+      }
+    };
+
+    loadData();
+  }, []);
 
   // Update daily data when tasks change
   useEffect(() => {
@@ -84,6 +145,19 @@ function App() {
       return format(taskDay, 'yyyy-MM-dd') === todayStr && task.completed;
     });
 
+    // Get repeating task IDs
+    const repeatingTaskIds = tasks
+      .filter(task => task.isRepeating)
+      .map(task => task.id);
+
+    // Get non-repeating task IDs for today only
+    const nonRepeatingTaskIds = tasks
+      .filter(task => !task.isRepeating && format(new Date(task.timestamp), 'yyyy-MM-dd') === todayStr)
+      .map(task => task.id);
+
+    // Calculate total tasks for today (repeating + today's non-repeating)
+    const totalTasksForToday = repeatingTaskIds.length + nonRepeatingTaskIds.length;
+
     setDailyData(prevData => {
       const existingDayIndex = prevData.findIndex(d => d.date === todayStr);
       if (existingDayIndex >= 0) {
@@ -91,18 +165,20 @@ function App() {
         newData[existingDayIndex] = {
           date: todayStr,
           completedTasks: completedTasks.length,
-          totalTasks: tasks.length,
+          totalTasks: totalTasksForToday,
           completedTaskIds: completedTasks.map(task => task.id),
-          totalTaskIds: tasks.map(task => task.id)
+          repeatingTaskIds: repeatingTaskIds,
+          nonRepeatingTaskIds: nonRepeatingTaskIds
         };
         return newData;
       } else {
         return [...prevData, {
           date: todayStr,
           completedTasks: completedTasks.length,
-          totalTasks: tasks.length,
+          totalTasks: totalTasksForToday,
           completedTaskIds: completedTasks.map(task => task.id),
-          totalTaskIds: tasks.map(task => task.id)
+          repeatingTaskIds: repeatingTaskIds,
+          nonRepeatingTaskIds: nonRepeatingTaskIds
         }];
       }
     });
@@ -116,6 +192,15 @@ function App() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Filter tasks to show all tasks
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      if (filter === 'active') return !task.completed;
+      if (filter === 'completed') return task.completed;
+      return true;
+    });
+  }, [tasks, filter]);
 
   // Check and reset repeating tasks at 5 AM
   useEffect(() => {
@@ -136,11 +221,11 @@ function App() {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             completed: false,
             timestamp: Date.now(),
-            lastCompleted: undefined
+            lastCompleted: task.completed ? Date.now() : task.lastCompleted
           }));
 
-          // Keep all tasks in localStorage but only show repeating tasks after 5 AM
-          return [...prevTasks, ...newTasks];
+          // Only keep repeating tasks
+          return [...newTasks];
         });
 
         // Update daily data for the new day
@@ -157,18 +242,20 @@ function App() {
             newData[existingDayIndex] = {
               date: todayStr,
               completedTasks: 0,
-              totalTasks: 0,
+              totalTasks: 0, // Will be updated with repeating tasks when they're added
               completedTaskIds: [],
-              totalTaskIds: []
+              repeatingTaskIds: [], // Will be populated with repeating tasks when they're added
+              nonRepeatingTaskIds: [] // Will be empty for new day
             };
             return newData;
           } else {
             return [...prevData, {
               date: todayStr,
               completedTasks: 0,
-              totalTasks: 0,
+              totalTasks: 0, // Will be updated with repeating tasks when they're added
               completedTaskIds: [],
-              totalTaskIds: []
+              repeatingTaskIds: [], // Will be populated with repeating tasks when they're added
+              nonRepeatingTaskIds: [] // Will be empty for new day
             }];
           }
         });
@@ -319,7 +406,8 @@ function App() {
             completedTasks: completedTasks.length,
             totalTasks: updatedTasks.length,
             completedTaskIds: completedTasks.map(task => task.id),
-            totalTaskIds: updatedTasks.map(task => task.id)
+            repeatingTaskIds: updatedTasks.filter(task => task.isRepeating).map(task => task.id),
+            nonRepeatingTaskIds: updatedTasks.filter(task => !task.isRepeating).map(task => task.id)
           };
           return newData;
         } else {
@@ -328,7 +416,8 @@ function App() {
             completedTasks: completedTasks.length,
             totalTasks: updatedTasks.length,
             completedTaskIds: completedTasks.map(task => task.id),
-            totalTaskIds: updatedTasks.map(task => task.id)
+            repeatingTaskIds: updatedTasks.filter(task => task.isRepeating).map(task => task.id),
+            nonRepeatingTaskIds: updatedTasks.filter(task => !task.isRepeating).map(task => task.id)
           }];
         }
       });
@@ -342,8 +431,10 @@ function App() {
   };
 
   const updateTask = (id: string, text: string) => {
+    if (!text.trim()) return; // Don't update if text is empty or only whitespace
+    
     setTasks(tasks.map(task =>
-      task.id === id ? { ...task, text } : task
+      task.id === id ? { ...task, text: text.trim() } : task
     ));
   };
 
@@ -351,37 +442,6 @@ function App() {
     // Update the order of all tasks, not just filtered ones
     setTasks(newTasks);
   };
-
-  // Filter tasks to show only today's repeating tasks
-  const filteredTasks = useMemo(() => {
-    const now = new Date();
-    const today = new Date(now);
-    if (now.getHours() < 5) {
-      today.setDate(today.getDate() - 1);
-    }
-    const todayStr = format(today, 'yyyy-MM-dd');
-
-    return tasks.filter(task => {
-      // If it's after 5 AM, only show repeating tasks
-      if (now.getHours() >= 5) {
-        if (!task.isRepeating) return false;
-      }
-
-      if (filter === 'active') {
-        if (task.isRepeating) {
-          const taskDate = new Date(task.timestamp);
-          const taskDay = new Date(taskDate);
-          if (taskDate.getHours() < 5) {
-            taskDay.setDate(taskDay.getDate() - 1);
-          }
-          return !task.completed && format(taskDay, 'yyyy-MM-dd') === todayStr;
-        }
-        return !task.completed;
-      }
-      if (filter === 'completed') return task.completed;
-      return true;
-    });
-  }, [tasks, filter]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
@@ -413,13 +473,13 @@ function App() {
 
           <TaskInput onAddTask={addTask} />
           <div className="flex-1 overflow-y-auto">
-            <TaskList
-              tasks={filteredTasks}
-              onToggleTask={toggleTask}
-              onDeleteTask={deleteTask}
-              onUpdateTask={updateTask}
+          <TaskList
+            tasks={filteredTasks}
+            onToggleTask={toggleTask}
+            onDeleteTask={deleteTask}
+            onUpdateTask={updateTask}
               onReorderTasks={reorderTasks}
-            />
+          />
           </div>
         </div>
 

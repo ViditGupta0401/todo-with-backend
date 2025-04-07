@@ -1,23 +1,25 @@
 import React, { useState } from 'react';
 import clsx from 'clsx';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isAfter, isSameDay } from 'date-fns';
+import type { Task } from '../types';
 
-interface DailyTaskInfo {
+interface DailyData {
   date: string;
   completedTasks: number;
   totalTasks: number;
   completedTaskIds: string[];
-  totalTaskIds: string[];
+  repeatingTaskIds: string[];
+  nonRepeatingTaskIds: string[];
 }
 
 interface HeatmapProps {
   data: { [key: string]: number };
-  dailyData: DailyTaskInfo[];
-  tasks: { id: string; text: string; priority: 'high' | 'medium' | 'low' }[];
+  dailyData: DailyData[];
+  tasks: Task[];
 }
 
-export function Heatmap({ data, dailyData, tasks }: HeatmapProps) {
-  const [selectedDay, setSelectedDay] = useState<DailyTaskInfo | null>(null);
+export const Heatmap: React.FC<HeatmapProps> = ({ data, dailyData, tasks }) => {
+  const [selectedDay, setSelectedDay] = useState<DailyData | null>(null);
 
   const getColor = (count: number) => {
     if (count === 0) return 'bg-gray-700';

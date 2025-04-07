@@ -18,3 +18,12 @@ export interface Analytics {
 }
 
 export type Filter = 'all' | 'active' | 'completed';
+
+export interface DailyTaskInfo {
+  date: string;
+  completedTasks: number;
+  totalTasks: number;
+  completedTaskIds: string[];
+  repeatingTaskIds: string[];
+  nonRepeatingTaskIds: string[];
+}

@@ -156,6 +156,16 @@ export function TaskList({ tasks, onToggleTask, onDeleteTask, onUpdateTask, onRe
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editText, setEditText] = React.useState('');
 
+  // Update editText when editingId changes
+  React.useEffect(() => {
+    if (editingId) {
+      const task = tasks.find(t => t.id === editingId);
+      if (task) {
+        setEditText(task.text);
+      }
+    }
+  }, [editingId, tasks]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
