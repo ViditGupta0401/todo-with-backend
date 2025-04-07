@@ -124,36 +124,14 @@ function App() {
       const fiveAM = new Date(now);
       fiveAM.setHours(5, 0, 0, 0);
       
-      // Only reset if it's exactly 5 AM
+      // Check if it's 5 AM
       if (now.getHours() === 5 && now.getMinutes() === 0) {
         setTasks(prevTasks => {
-          // Get all repeating tasks that were completed yesterday
-          const yesterdayRepeatingTasks = prevTasks.filter(task => 
-            task.isRepeating && 
-            task.completed && 
-            task.lastCompleted && 
-            new Date(task.lastCompleted) < fiveAM
-          );
-
-          // Reset completed repeating tasks
-          const resetTasks = prevTasks.map(task => {
-            if (task.isRepeating && task.completed) {
-              const lastCompleted = task.lastCompleted ? new Date(task.lastCompleted) : null;
-              const shouldReset = !lastCompleted || lastCompleted < fiveAM;
-              
-              if (shouldReset) {
-                return {
-                  ...task,
-                  completed: false,
-                  lastCompleted: task.completed ? Date.now() : task.lastCompleted
-                };
-              }
-            }
-            return task;
-          });
-
-          // Add new instances of completed repeating tasks for today
-          const newTasks = yesterdayRepeatingTasks.map(task => ({
+          // Get all repeating tasks
+          const repeatingTasks = prevTasks.filter(task => task.isRepeating);
+          
+          // Create new instances of repeating tasks for today
+          const newTasks = repeatingTasks.map(task => ({
             ...task,
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             completed: false,
@@ -161,7 +139,38 @@ function App() {
             lastCompleted: undefined
           }));
 
-          return [...resetTasks, ...newTasks];
+          // Keep all tasks in localStorage but only show repeating tasks after 5 AM
+          return [...prevTasks, ...newTasks];
+        });
+
+        // Update daily data for the new day
+        const today = new Date();
+        if (today.getHours() < 5) {
+          today.setDate(today.getDate() - 1);
+        }
+        const todayStr = format(today, 'yyyy-MM-dd');
+
+        setDailyData(prevData => {
+          const existingDayIndex = prevData.findIndex(d => d.date === todayStr);
+          if (existingDayIndex >= 0) {
+            const newData = [...prevData];
+            newData[existingDayIndex] = {
+              date: todayStr,
+              completedTasks: 0,
+              totalTasks: 0,
+              completedTaskIds: [],
+              totalTaskIds: []
+            };
+            return newData;
+          } else {
+            return [...prevData, {
+              date: todayStr,
+              completedTasks: 0,
+              totalTasks: 0,
+              completedTaskIds: [],
+              totalTaskIds: []
+            }];
+          }
         });
       }
     };
@@ -193,70 +202,68 @@ function App() {
 
   // Calculate real analytics data
   const analyticsData = useMemo(() => {
-    const completedTasks = tasks.filter(task => task.completed);
-    const taskDates = completedTasks.map(task => {
-      const date = new Date(task.timestamp);
-      // Adjust the date to consider 5 AM as the start of the day
-      if (date.getHours() < 5) {
-        date.setDate(date.getDate() - 1);
-      }
-      return date;
-    });
+    const now = new Date();
+    const today = new Date(now);
+    if (now.getHours() < 5) {
+      today.setDate(today.getDate() - 1);
+    }
+    const todayStr = format(today, 'yyyy-MM-dd');
+
+    // Get all days with completed tasks
+    const activeDays = dailyData.filter(day => day.completedTasks > 0);
     
-    // Sort dates in ascending order
-    taskDates.sort((a, b) => a.getTime() - b.getTime());
-    
+    // Calculate streaks
     let currentStreak = 0;
     let longestStreak = 0;
     let tempStreak = 0;
-    const uniqueDays = new Set<string>();
     
-    for (let i = 0; i < taskDates.length; i++) {
-      const date = taskDates[i];
-      const dateStr = format(date, 'yyyy-MM-dd');
-      uniqueDays.add(dateStr);
+    // Sort days in ascending order
+    const sortedDays = [...activeDays].sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    for (let i = 0; i < sortedDays.length; i++) {
+      const currentDate = new Date(sortedDays[i].date);
+      const nextDate = i < sortedDays.length - 1 ? new Date(sortedDays[i + 1].date) : null;
       
-      // Calculate streaks
-      if (i === 0) {
-        tempStreak = 1;
+      // Calculate day difference
+      const dayDiff = nextDate 
+        ? Math.floor((nextDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+
+      if (dayDiff === 1) {
+        tempStreak++;
       } else {
-        const prevDate = taskDates[i - 1];
-        const diffDays = Math.floor((date.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
-        
-        if (diffDays === 1) {
-          tempStreak++;
-        } else if (diffDays > 1) {
-          tempStreak = 1;
-        }
+        tempStreak = 1;
       }
-      
+
       if (tempStreak > longestStreak) {
         longestStreak = tempStreak;
       }
-      
+
       // Check if this is part of the current streak
-      const today = new Date();
-      if (today.getHours() < 5) {
-        today.setDate(today.getDate() - 1);
-      }
-      const diffDays = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays === 0) {
+      const todayDate = new Date(todayStr);
+      const daysSinceLast = Math.floor((todayDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysSinceLast === 0) {
         currentStreak = tempStreak;
       }
     }
-    
-    const totalActiveDays = uniqueDays.size;
-    const completionRate = tasks.length > 0 
-      ? Math.round((completedTasks.length / tasks.length) * 100) 
+
+    // Calculate completion rate
+    const totalCompletedTasks = dailyData.reduce((sum, day) => sum + day.completedTasks, 0);
+    const totalPossibleTasks = dailyData.reduce((sum, day) => sum + day.totalTasks, 0);
+    const completionRate = totalPossibleTasks > 0 
+      ? Math.round((totalCompletedTasks / totalPossibleTasks) * 100) 
       : 0;
-    
+
     return {
       currentStreak,
       longestStreak,
-      totalActiveDays,
+      totalActiveDays: activeDays.length,
       completionRate,
     };
-  }, [tasks]);
+  }, [dailyData]);
 
   const addTask = (text: string, priority: Task['priority'], isRepeating: boolean = false) => {
     const newTask: Task = {
@@ -272,16 +279,62 @@ function App() {
   };
 
   const toggleTask = (id: string) => {
-    setTasks(tasks.map(task => {
-      if (task.id === id) {
-        return {
-          ...task,
-          completed: !task.completed,
-          lastCompleted: !task.completed ? Date.now() : task.lastCompleted
-        };
+    setTasks(prevTasks => {
+      const updatedTasks = prevTasks.map(task => {
+        if (task.id === id) {
+          const now = Date.now();
+          return {
+            ...task,
+            completed: !task.completed,
+            timestamp: now,
+            lastCompleted: !task.completed ? now : task.lastCompleted
+          };
+        }
+        return task;
+      });
+
+      // Update daily data immediately after task state changes
+      const now = new Date();
+      const today = new Date(now);
+      if (now.getHours() < 5) {
+        today.setDate(today.getDate() - 1);
       }
-      return task;
-    }));
+      const todayStr = format(today, 'yyyy-MM-dd');
+
+      const completedTasks = updatedTasks.filter(task => {
+        const taskDate = new Date(task.completed ? task.timestamp : task.lastCompleted || 0);
+        const taskDay = new Date(taskDate);
+        if (taskDate.getHours() < 5) {
+          taskDay.setDate(taskDay.getDate() - 1);
+        }
+        return format(taskDay, 'yyyy-MM-dd') === todayStr && task.completed;
+      });
+
+      setDailyData(prevData => {
+        const existingDayIndex = prevData.findIndex(d => d.date === todayStr);
+        if (existingDayIndex >= 0) {
+          const newData = [...prevData];
+          newData[existingDayIndex] = {
+            date: todayStr,
+            completedTasks: completedTasks.length,
+            totalTasks: updatedTasks.length,
+            completedTaskIds: completedTasks.map(task => task.id),
+            totalTaskIds: updatedTasks.map(task => task.id)
+          };
+          return newData;
+        } else {
+          return [...prevData, {
+            date: todayStr,
+            completedTasks: completedTasks.length,
+            totalTasks: updatedTasks.length,
+            completedTaskIds: completedTasks.map(task => task.id),
+            totalTaskIds: updatedTasks.map(task => task.id)
+          }];
+        }
+      });
+
+      return updatedTasks;
+    });
   };
 
   const deleteTask = (id: string) => {
@@ -309,6 +362,11 @@ function App() {
     const todayStr = format(today, 'yyyy-MM-dd');
 
     return tasks.filter(task => {
+      // If it's after 5 AM, only show repeating tasks
+      if (now.getHours() >= 5) {
+        if (!task.isRepeating) return false;
+      }
+
       if (filter === 'active') {
         if (task.isRepeating) {
           const taskDate = new Date(task.timestamp);
