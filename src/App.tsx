@@ -3,6 +3,7 @@ import { TaskInput } from './components/TaskInput';
 import { TaskList } from './components/TaskList';
 import { Analytics } from './components/Analytics';
 import { Heatmap } from './components/Heatmap';
+import { QuickLinks } from './components/QuickLinks';
 import type { Task, Filter } from './types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 
@@ -79,6 +80,7 @@ function App() {
 
   const [filter, setFilter] = useState<Filter>('all');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
 
   // Save tasks to localStorage whenever they change
   useEffect(() => {
@@ -269,11 +271,10 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Calculate real heatmap data
+  // Calculate real heatmap data for the selected month
   const heatmapData = useMemo(() => {
-    const today = currentTime;
-    const monthStart = startOfMonth(today);
-    const monthEnd = endOfMonth(today);
+    const monthStart = startOfMonth(selectedMonth);
+    const monthEnd = endOfMonth(selectedMonth);
     const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
     
     const data: { [key: string]: number } = {};
@@ -285,7 +286,7 @@ function App() {
     });
     
     return data;
-  }, [dailyData, currentTime]);
+  }, [dailyData, selectedMonth]);
 
   // Calculate real analytics data
   const analyticsData = useMemo(() => {
@@ -444,25 +445,30 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-7xl mx-auto grid grid-cols-5 gap-8 h-[calc(100vh-4rem)]">
-        <div className="col-span-3 flex flex-col">
+    <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8 font-ubuntu">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-8 h-[calc(100vh-2rem)]">
+        <div className="col-span-1 md:col-span-3 flex flex-col overflow-hidden">
           <div className="flex items-center justify-between mb-8">
-            <h1 className="text-3xl font-bold">Todo Tracker</h1>
-            <div className="text-lg text-gray-400">
+            <div className="flex items-center gap-3">
+              <img className='w-10' src="/src/components/icon.png" alt="" />
+              <h1 className="text-3xl font-bold tracking-tight">Daily Tasks</h1>
+            </div>
+            <div className="hidden md:flex text-lg items-center justify-center gap-2 text-gray-400">
               {format(currentTime, 'EEEE, MMMM d, yyyy')}
-              <span className="ml-2 font-mono">
+              <span className="ml-2 font-semibold text-4xl font-mono tracking-tight">
                 {format(currentTime, 'hh:mm:ss a')}
               </span>
             </div>
           </div>
+
+          <QuickLinks />
           
           <div className="flex gap-4 mb-6">
             {(['all', 'active', 'completed'] as Filter[]).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-4 py-2 rounded-lg transition-all ${
+                className={`px-4 py-2 rounded-full transition-all ${
                   filter === f ? 'bg-blue-600' : 'bg-gray-800'
                 }`}
               >
@@ -472,7 +478,7 @@ function App() {
           </div>
 
           <TaskInput onAddTask={addTask} />
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
           <TaskList
             tasks={filteredTasks}
             onToggleTask={toggleTask}
@@ -483,13 +489,15 @@ function App() {
           </div>
         </div>
 
-        <div className="col-span-2 w-[80%] bg-gray-800 p-6 rounded-xl">
+        <div className="col-span-1 w-[80%] md:col-span-2 bg-gray-800 p-4 md:p-6 rounded-xl overflow-y-auto custom-scrollbar">
           <h2 className="text-2xl font-bold mb-6">Analytics</h2>
           <Analytics data={analyticsData} />
           <Heatmap 
             data={heatmapData} 
             dailyData={dailyData}
             tasks={tasks}
+            selectedDate={selectedMonth}
+            onDateChange={setSelectedMonth}
           />
         </div>
       </div>
