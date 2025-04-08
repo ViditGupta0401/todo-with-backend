@@ -6,6 +6,7 @@ import { Heatmap } from './components/Heatmap';
 import { QuickLinks } from './components/QuickLinks';
 import type { Task, Filter } from './types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
+import logo from './components/icon.png'
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
@@ -540,7 +541,7 @@ function App() {
         <div className="col-span-1 md:col-span-3 flex flex-col overflow-hidden">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <img className='w-10' src="/src/components/icon.png" alt="" />
+              <img className='w-10' src={logo} alt="" />
               <h1 className="text-3xl font-bold tracking-tight">Daily Tasks</h1>
             </div>
             <div className="hidden md:flex text-lg items-center justify-center gap-2 text-gray-400">
