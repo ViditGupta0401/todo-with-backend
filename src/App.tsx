@@ -7,6 +7,7 @@ import { QuickLinks } from './components/QuickLinks';
 import { useTheme } from './context/ThemeContext';
 import type { Task, Filter } from './types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
+import logo from './components/icon.png'
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
@@ -46,6 +47,16 @@ function App() {
         }
         const todayStr = format(today, 'yyyy-MM-dd');
 
+        // Get the daily data to check completed tasks
+        const savedDailyData = localStorage.getItem(DAILY_DATA_KEY);
+        let completedTaskIds: string[] = [];
+        if (savedDailyData) {
+          const dailyDataArray = JSON.parse(savedDailyData) as DailyData[];
+          const todayData = dailyDataArray.find(data => data.date === todayStr);
+          completedTaskIds = todayData?.completedTaskIds || [];
+          console.log('Completed task IDs from daily data:', completedTaskIds);
+        }
+
         // Convert timestamp strings back to numbers and ensure all required fields
         return parsedTasks.map(task => ({
           ...task,
@@ -53,8 +64,19 @@ function App() {
           lastCompleted: task.lastCompleted ? Number(task.lastCompleted) : undefined,
           isRepeating: task.isRepeating || false,
           priority: task.priority || 'medium',
+<<<<<<< HEAD
           completed: task.completed // Preserve completed state for all tasks
         }));
+=======
+          // Only mark as completed if it's in the completedTaskIds array
+          completed: completedTaskIds.includes(task.id)
+        })).filter(task => {
+          // Keep repeating tasks and today's non-repeating tasks
+          if (task.isRepeating) return true;
+          const taskDate = format(new Date(task.timestamp), 'yyyy-MM-dd');
+          return taskDate === todayStr;
+        });
+>>>>>>> d688b2d62c2ac1f964cd954b8628bdb33fa32d74
       } catch (error) {
         console.error('Error loading tasks from localStorage:', error);
         return [];
@@ -86,10 +108,99 @@ function App() {
     setUrlTitle(title);
   };
 
+  // Function to update daily data
+  const updateDailyData = (currentTasks: Task[]) => {
+    const now = new Date();
+    const today = new Date(now);
+    if (now.getHours() < 5) {
+      today.setDate(today.getDate() - 1);
+    }
+    const todayStr = format(today, 'yyyy-MM-dd');
+    console.log('Updating daily data for:', todayStr);
+    console.log('Current tasks:', currentTasks);
+
+    // Get completed tasks for today
+    const completedTasks = currentTasks.filter(task => {
+      // Check if the task is completed
+      if (!task.completed) return false;
+      
+      // For completed tasks, check if they were completed today
+      const taskDate = new Date(task.lastCompleted || task.timestamp);
+      const taskDay = new Date(taskDate);
+      if (taskDate.getHours() < 5) {
+        taskDay.setDate(taskDay.getDate() - 1);
+      }
+      const taskDateStr = format(taskDay, 'yyyy-MM-dd');
+      console.log(`Task ${task.id} completed date: ${taskDateStr}, today: ${todayStr}`);
+      return taskDateStr === todayStr;
+    });
+    console.log('Completed tasks for today:', completedTasks);
+
+    // Get repeating task IDs
+    const repeatingTaskIds = currentTasks
+      .filter(task => task.isRepeating)
+      .map(task => task.id);
+    console.log('Repeating task IDs:', repeatingTaskIds);
+
+    // Get non-repeating task IDs for today only
+    const nonRepeatingTaskIds = currentTasks
+      .filter(task => {
+        // For non-repeating tasks, we need to check if they were created today
+        if (!task.isRepeating) {
+          const taskDate = format(new Date(task.timestamp), 'yyyy-MM-dd');
+          const isToday = taskDate === todayStr;
+          console.log(`Non-repeating task ${task.id}:`);
+          console.log(`  - Timestamp: ${task.timestamp}`);
+          console.log(`  - Date: ${taskDate}`);
+          console.log(`  - Today: ${todayStr}`);
+          console.log(`  - Is today: ${isToday}`);
+          return isToday;
+        }
+        return false;
+      })
+      .map(task => task.id);
+    console.log('Non-repeating task IDs:', nonRepeatingTaskIds);
+
+    // Calculate total tasks for today
+    const totalTasksForToday = repeatingTaskIds.length + nonRepeatingTaskIds.length;
+    console.log('Total tasks for today:', totalTasksForToday);
+
+    // Update daily data
+    setDailyData(prevData => {
+      const existingDayIndex = prevData.findIndex(d => d.date === todayStr);
+      if (existingDayIndex >= 0) {
+        const newData = [...prevData];
+        newData[existingDayIndex] = {
+          ...newData[existingDayIndex],
+          completedTasks: completedTasks.length,
+          totalTasks: totalTasksForToday,
+          completedTaskIds: completedTasks.map(task => task.id),
+          repeatingTaskIds: repeatingTaskIds,
+          nonRepeatingTaskIds: nonRepeatingTaskIds
+        };
+        console.log('Updated existing day data:', newData[existingDayIndex]);
+        return newData;
+      } else {
+        const newDayData = {
+          date: todayStr,
+          completedTasks: completedTasks.length,
+          totalTasks: totalTasksForToday,
+          completedTaskIds: completedTasks.map(task => task.id),
+          repeatingTaskIds: repeatingTaskIds,
+          nonRepeatingTaskIds: nonRepeatingTaskIds
+        };
+        console.log('Created new day data:', newDayData);
+        return [...prevData, newDayData];
+      }
+    });
+  };
+
   // Save tasks to localStorage whenever they change
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      // Update daily data whenever tasks change
+      updateDailyData(tasks);
     } catch (error) {
       console.error('Error saving tasks to localStorage:', error);
     }
@@ -104,6 +215,51 @@ function App() {
     }
   }, [dailyData]);
 
+  // Check for day change and reset tasks at midnight
+  useEffect(() => {
+    const checkDayChange = () => {
+      const now = new Date();
+      const currentDate = format(now, 'yyyy-MM-dd');
+      
+      // Get the last saved date from localStorage
+      const lastSavedDate = localStorage.getItem('last-saved-date');
+      
+      // If it's a new day (or first time running)
+      if (lastSavedDate !== currentDate) {
+        console.log('New day detected, updating tasks and daily data');
+        
+        // Save the current date
+        localStorage.setItem('last-saved-date', currentDate);
+        
+        // Update daily data for the new day
+        updateDailyData(tasks);
+        
+        // Reset completed status for repeating tasks
+        setTasks(prevTasks => {
+          return prevTasks.map(task => {
+            if (task.isRepeating) {
+              return {
+                ...task,
+                completed: false,
+                lastCompleted: task.completed ? task.timestamp : task.lastCompleted
+              };
+            }
+            return task;
+          });
+        });
+      }
+    };
+    
+    // Check immediately on component mount
+    checkDayChange();
+    
+    // Set up interval to check every minute
+    const interval = setInterval(checkDayChange, 60000);
+    
+    // Clean up interval on unmount
+    return () => clearInterval(interval);
+  }, [tasks]);
+
   // Load data from localStorage on component mount
   useEffect(() => {
     const loadData = () => {
@@ -111,19 +267,45 @@ function App() {
         const savedTasks = localStorage.getItem(STORAGE_KEY);
         const savedDailyData = localStorage.getItem(DAILY_DATA_KEY);
 
+        // First load daily data to get completed tasks
+        let completedTaskIds: string[] = [];
+        if (savedDailyData) {
+          const parsedDailyData = JSON.parse(savedDailyData);
+          setDailyData(parsedDailyData);
+          console.log('Loaded daily data from localStorage:', parsedDailyData);
+
+          // Get today's completed tasks
+          const now = new Date();
+          const today = new Date(now);
+          if (now.getHours() < 5) {
+            today.setDate(today.getDate() - 1);
+          }
+          const todayStr = format(today, 'yyyy-MM-dd');
+          const todayData = parsedDailyData.find((d: DailyData) => d.date === todayStr);
+          completedTaskIds = todayData?.completedTaskIds || [];
+          console.log('Today\'s completed task IDs:', completedTaskIds);
+        }
+
         if (savedTasks) {
           const parsedTasks = JSON.parse(savedTasks) as StoredTask[];
-          setTasks(parsedTasks.map(task => ({
+          const tasks = parsedTasks.map(task => ({
             ...task,
             timestamp: Number(task.timestamp),
             lastCompleted: task.lastCompleted ? Number(task.lastCompleted) : undefined,
             isRepeating: task.isRepeating || false,
-            priority: task.priority || 'medium'
-          })));
+            priority: task.priority || 'medium',
+            // Only mark as completed if it's in today's completedTaskIds
+            completed: completedTaskIds.includes(task.id)
+          }));
+          setTasks(tasks);
+          console.log('Loaded tasks from localStorage:', tasks);
         }
-
-        if (savedDailyData) {
-          setDailyData(JSON.parse(savedDailyData));
+        
+        // Initialize last-saved-date if it doesn't exist
+        const currentDate = format(new Date(), 'yyyy-MM-dd');
+        if (!localStorage.getItem('last-saved-date')) {
+          localStorage.setItem('last-saved-date', currentDate);
+          console.log('Initialized last-saved-date:', currentDate);
         }
       } catch (error) {
         console.error('Error loading data from localStorage:', error);
@@ -133,6 +315,7 @@ function App() {
     loadData();
   }, []);
 
+<<<<<<< HEAD
   // Update daily data when tasks change
   useEffect(() => {
     const now = new Date();
@@ -205,6 +388,8 @@ function App() {
     });
   }, [tasks]);
 
+=======
+>>>>>>> d688b2d62c2ac1f964cd954b8628bdb33fa32d74
   // Update time every second
   useEffect(() => {
     const interval = setInterval(() => {
@@ -405,16 +590,26 @@ function App() {
   }, [dailyData]);
 
   const addTask = (text: string, priority: Task['priority'], isRepeating: boolean = false) => {
+    const timestamp = Date.now();
+    const taskDate = format(new Date(timestamp), 'yyyy-MM-dd');
+    console.log('Adding task with timestamp:', timestamp, 'date:', taskDate, 'isRepeating:', isRepeating);
+    
     const newTask: Task = {
-      id: Date.now().toString(),
+      id: timestamp.toString(),
       text,
       priority,
       completed: false,
-      timestamp: Date.now(),
-      isRepeating,
+      timestamp: timestamp,
+      isRepeating: isRepeating,
       lastCompleted: undefined
     };
-    setTasks([newTask, ...tasks]);
+    
+    // Add the task to the tasks array
+    const updatedTasks = [newTask, ...tasks];
+    setTasks(updatedTasks);
+    
+    // Manually update daily data to ensure it's updated immediately
+    updateDailyData(updatedTasks);
   };
 
   const toggleTask = (id: string) => {
@@ -432,6 +627,7 @@ function App() {
         return task;
       });
 
+<<<<<<< HEAD
       // Update daily data immediately after task state changes
       const now = new Date();
       const today = new Date(now);
@@ -498,12 +694,22 @@ function App() {
         }
       });
 
+=======
+      // Manually update daily data to ensure it's updated immediately
+      updateDailyData(updatedTasks);
+      
+>>>>>>> d688b2d62c2ac1f964cd954b8628bdb33fa32d74
       return updatedTasks;
     });
   };
 
   const deleteTask = (id: string) => {
-    setTasks(tasks.filter(task => task.id !== id));
+    // Remove the task from the tasks array
+    const updatedTasks = tasks.filter(task => task.id !== id);
+    setTasks(updatedTasks);
+    
+    // Manually update daily data to ensure it's updated immediately
+    updateDailyData(updatedTasks);
   };
 
   const updateTask = (id: string, text: string) => {
@@ -520,12 +726,22 @@ function App() {
   };
 
   return (
+<<<<<<< HEAD
     <div className="min-h-screen dark:bg-[#18181c] bg-gray-100 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-6 gap-4 lg:gap-6 min-h-[calc(100vh-2rem)]">
         <div className="col-span-1 lg:col-span-4 flex flex-col overflow-hidden">
           <div className="flex flex-col sm:flex-row items-center justify-between mb-4 sm:mb-6 lg:mb-8">
             <div className="flex items-center gap-3 mb-3 sm:mb-0">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight dark:text-slate-50 text-slate-900">Doing <span className='text-[#ff4101]'>.</span></h1>
+=======
+    <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8 font-ubuntu">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-8 h-[calc(100vh-2rem)]">
+        <div className="col-span-1 md:col-span-3 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <img className='w-10' src={logo} alt="" />
+              <h1 className="text-3xl font-bold tracking-tight">Daily Tasks</h1>
+>>>>>>> d688b2d62c2ac1f964cd954b8628bdb33fa32d74
             </div>
             <div className="flex flex-col text-center sm:text-right text-gray-900 dark:text-gray-400">
               <span className="font-semibold text-2xl sm:text-3xl md:text-4xl font-mono tracking-tight">
