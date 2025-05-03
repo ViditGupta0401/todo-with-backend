@@ -64,10 +64,6 @@ function App() {
           lastCompleted: task.lastCompleted ? Number(task.lastCompleted) : undefined,
           isRepeating: task.isRepeating || false,
           priority: task.priority || 'medium',
-<<<<<<< HEAD
-          completed: task.completed // Preserve completed state for all tasks
-        }));
-=======
           // Only mark as completed if it's in the completedTaskIds array
           completed: completedTaskIds.includes(task.id)
         })).filter(task => {
@@ -76,7 +72,6 @@ function App() {
           const taskDate = format(new Date(task.timestamp), 'yyyy-MM-dd');
           return taskDate === todayStr;
         });
->>>>>>> d688b2d62c2ac1f964cd954b8628bdb33fa32d74
       } catch (error) {
         console.error('Error loading tasks from localStorage:', error);
         return [];
@@ -315,81 +310,6 @@ function App() {
     loadData();
   }, []);
 
-<<<<<<< HEAD
-  // Update daily data when tasks change
-  useEffect(() => {
-    const now = new Date();
-    const today = new Date(now);
-    if (now.getHours() < 5) {
-      today.setDate(today.getDate() - 1);
-    }
-    const todayStr = format(today, 'yyyy-MM-dd');
-
-    // Get all completed tasks for today
-    const completedTasks = tasks.filter(task => {
-      const taskDate = new Date(task.completed ? task.timestamp : task.lastCompleted || 0);
-      const taskDay = new Date(taskDate);
-      if (taskDate.getHours() < 5) {
-        taskDay.setDate(taskDay.getDate() - 1);
-      }
-      return format(taskDay, 'yyyy-MM-dd') === todayStr && task.completed;
-    });
-
-    // Get completed non-repeating tasks for today
-    const completedNonRepeatingTasks = completedTasks.filter(task => !task.isRepeating);
-
-    // Get repeating task IDs
-    const repeatingTaskIds = tasks
-      .filter(task => task.isRepeating)
-      .map(task => task.id);
-
-    // Get all non-repeating task IDs that should be counted for today
-    const nonRepeatingTaskIds = tasks
-      .filter(task => !task.isRepeating) // Include all non-repeating tasks, not just ones created today
-      .map(task => task.id);
-
-    // Calculate total tasks for today (repeating + all non-repeating)
-    const totalTasksForToday = repeatingTaskIds.length + nonRepeatingTaskIds.length;
-
-    setDailyData(prevData => {
-      const existingDayIndex = prevData.findIndex(d => d.date === todayStr);
-      if (existingDayIndex >= 0) {
-        const newData = [...prevData];
-        newData[existingDayIndex] = {
-          ...newData[existingDayIndex], // Preserve existing fields like remarks
-          date: todayStr,
-          completedTasks: completedTasks.length,
-          totalTasks: totalTasksForToday,
-          completedTaskIds: completedTasks.map(task => task.id),
-          repeatingTaskIds: repeatingTaskIds,
-          nonRepeatingTaskIds: nonRepeatingTaskIds,
-          completedTaskTexts: completedTasks.map(task => ({
-            id: task.id,
-            text: task.text,
-            priority: task.priority
-          }))
-        };
-        return newData;
-      } else {
-        return [...prevData, {
-          date: todayStr,
-          completedTasks: completedTasks.length,
-          totalTasks: totalTasksForToday,
-          completedTaskIds: completedTasks.map(task => task.id),
-          repeatingTaskIds: repeatingTaskIds,
-          nonRepeatingTaskIds: nonRepeatingTaskIds,
-          completedTaskTexts: completedTasks.map(task => ({
-            id: task.id,
-            text: task.text,
-            priority: task.priority
-          }))
-        }];
-      }
-    });
-  }, [tasks]);
-
-=======
->>>>>>> d688b2d62c2ac1f964cd954b8628bdb33fa32d74
   // Update time every second
   useEffect(() => {
     const interval = setInterval(() => {
@@ -627,78 +547,9 @@ function App() {
         return task;
       });
 
-<<<<<<< HEAD
-      // Update daily data immediately after task state changes
-      const now = new Date();
-      const today = new Date(now);
-      if (now.getHours() < 5) {
-        today.setDate(today.getDate() - 1);
-      }
-      const todayStr = format(today, 'yyyy-MM-dd');
-
-      const completedTasks = updatedTasks.filter(task => {
-        const taskDate = new Date(task.completed ? task.timestamp : task.lastCompleted || 0);
-        const taskDay = new Date(taskDate);
-        if (taskDate.getHours() < 5) {
-          taskDay.setDate(taskDay.getDate() - 1);
-        }
-        return format(taskDay, 'yyyy-MM-dd') === todayStr && task.completed;
-      });
-
-      setDailyData(prevData => {
-        const existingDayIndex = prevData.findIndex(d => d.date === todayStr);
-        
-        // Get only today's tasks for proper total count
-        const repeatingTaskIds = updatedTasks
-          .filter(task => task.isRepeating)
-          .map(task => task.id);
-        
-        const nonRepeatingTaskIds = updatedTasks
-          .filter(task => !task.isRepeating) // Include all non-repeating tasks, not just ones created today
-          .map(task => task.id);
-        
-        // Correctly calculate total tasks for today
-        const totalTasksForToday = repeatingTaskIds.length + nonRepeatingTaskIds.length;
-        
-        if (existingDayIndex >= 0) {
-          const newData = [...prevData];
-          newData[existingDayIndex] = {
-            ...newData[existingDayIndex], // Preserve existing fields like remarks
-            date: todayStr,
-            completedTasks: completedTasks.length,
-            totalTasks: totalTasksForToday,
-            completedTaskIds: completedTasks.map(task => task.id),
-            repeatingTaskIds: repeatingTaskIds,
-            nonRepeatingTaskIds: nonRepeatingTaskIds,
-            completedTaskTexts: completedTasks.map(task => ({
-              id: task.id,
-              text: task.text,
-              priority: task.priority
-            }))
-          };
-          return newData;
-        } else {
-          return [...prevData, {
-            date: todayStr,
-            completedTasks: completedTasks.length,
-            totalTasks: totalTasksForToday,
-            completedTaskIds: completedTasks.map(task => task.id),
-            repeatingTaskIds: repeatingTaskIds,
-            nonRepeatingTaskIds: nonRepeatingTaskIds,
-            completedTaskTexts: completedTasks.map(task => ({
-              id: task.id,
-              text: task.text,
-              priority: task.priority
-            }))
-          }];
-        }
-      });
-
-=======
       // Manually update daily data to ensure it's updated immediately
       updateDailyData(updatedTasks);
       
->>>>>>> d688b2d62c2ac1f964cd954b8628bdb33fa32d74
       return updatedTasks;
     });
   };
@@ -726,22 +577,12 @@ function App() {
   };
 
   return (
-<<<<<<< HEAD
     <div className="min-h-screen dark:bg-[#18181c] bg-gray-100 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-6 gap-4 lg:gap-6 min-h-[calc(100vh-2rem)]">
         <div className="col-span-1 lg:col-span-4 flex flex-col overflow-hidden">
           <div className="flex flex-col sm:flex-row items-center justify-between mb-4 sm:mb-6 lg:mb-8">
             <div className="flex items-center gap-3 mb-3 sm:mb-0">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight dark:text-slate-50 text-slate-900">Doing <span className='text-[#ff4101]'>.</span></h1>
-=======
-    <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8 font-ubuntu">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-8 h-[calc(100vh-2rem)]">
-        <div className="col-span-1 md:col-span-3 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <img className='w-10' src={logo} alt="" />
-              <h1 className="text-3xl font-bold tracking-tight">Daily Tasks</h1>
->>>>>>> d688b2d62c2ac1f964cd954b8628bdb33fa32d74
             </div>
             <div className="flex flex-col text-center sm:text-right text-gray-900 dark:text-gray-400">
               <span className="font-semibold text-2xl sm:text-3xl md:text-4xl font-mono tracking-tight">
@@ -800,6 +641,18 @@ function App() {
           <span className="text-gray-700 dark:text-gray-300">URL Title: {urlTitle}</span>
         </div>
       )}
+      
+      {/* Footer with developer attribution */}
+      <footer className="mt-8 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
+        Made by <a 
+          href="https://www.piyushdev.me" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-[#ff4101] hover:underline transition-all"
+        >
+          Piyush
+        </a>
+      </footer>
     </div>
   );
 }
