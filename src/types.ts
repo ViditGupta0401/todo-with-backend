@@ -26,4 +26,5 @@ export interface DailyTaskInfo {
   completedTaskIds: string[];
   repeatingTaskIds: string[];
   nonRepeatingTaskIds: string[];
+  remark?: string;
 }

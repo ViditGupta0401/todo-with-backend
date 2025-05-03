@@ -4,6 +4,7 @@ import { TaskList } from './components/TaskList';
 import { Analytics } from './components/Analytics';
 import { Heatmap } from './components/Heatmap';
 import { QuickLinks } from './components/QuickLinks';
+import { useTheme } from './context/ThemeContext';
 import type { Task, Filter } from './types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 
@@ -27,6 +28,8 @@ interface DailyData {
   completedTaskIds: string[];
   repeatingTaskIds: string[];
   nonRepeatingTaskIds: string[];
+  completedTaskTexts?: { id: string; text: string; priority: 'high' | 'medium' | 'low' }[];
+  remark?: string; // Add remark field
 }
 
 function App() {
@@ -50,13 +53,8 @@ function App() {
           lastCompleted: task.lastCompleted ? Number(task.lastCompleted) : undefined,
           isRepeating: task.isRepeating || false,
           priority: task.priority || 'medium',
-          completed: false // Reset all tasks to incomplete for the new day
-        })).filter(task => {
-          // Keep repeating tasks and today's non-repeating tasks
-          if (task.isRepeating) return true;
-          const taskDate = format(new Date(task.timestamp), 'yyyy-MM-dd');
-          return taskDate === todayStr;
-        });
+          completed: task.completed // Preserve completed state for all tasks
+        }));
       } catch (error) {
         console.error('Error loading tasks from localStorage:', error);
         return [];
@@ -81,6 +79,12 @@ function App() {
   const [filter, setFilter] = useState<Filter>('all');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [urlTitle, setUrlTitle] = useState<string | null>(null);
+
+  // Function to update the URL title
+  const updateUrlTitle = (title: string) => {
+    setUrlTitle(title);
+  };
 
   // Save tasks to localStorage whenever they change
   useEffect(() => {
@@ -138,6 +142,7 @@ function App() {
     }
     const todayStr = format(today, 'yyyy-MM-dd');
 
+    // Get all completed tasks for today
     const completedTasks = tasks.filter(task => {
       const taskDate = new Date(task.completed ? task.timestamp : task.lastCompleted || 0);
       const taskDay = new Date(taskDate);
@@ -147,17 +152,20 @@ function App() {
       return format(taskDay, 'yyyy-MM-dd') === todayStr && task.completed;
     });
 
+    // Get completed non-repeating tasks for today
+    const completedNonRepeatingTasks = completedTasks.filter(task => !task.isRepeating);
+
     // Get repeating task IDs
     const repeatingTaskIds = tasks
       .filter(task => task.isRepeating)
       .map(task => task.id);
 
-    // Get non-repeating task IDs for today only
+    // Get all non-repeating task IDs that should be counted for today
     const nonRepeatingTaskIds = tasks
-      .filter(task => !task.isRepeating && format(new Date(task.timestamp), 'yyyy-MM-dd') === todayStr)
+      .filter(task => !task.isRepeating) // Include all non-repeating tasks, not just ones created today
       .map(task => task.id);
 
-    // Calculate total tasks for today (repeating + today's non-repeating)
+    // Calculate total tasks for today (repeating + all non-repeating)
     const totalTasksForToday = repeatingTaskIds.length + nonRepeatingTaskIds.length;
 
     setDailyData(prevData => {
@@ -165,12 +173,18 @@ function App() {
       if (existingDayIndex >= 0) {
         const newData = [...prevData];
         newData[existingDayIndex] = {
+          ...newData[existingDayIndex], // Preserve existing fields like remarks
           date: todayStr,
           completedTasks: completedTasks.length,
           totalTasks: totalTasksForToday,
           completedTaskIds: completedTasks.map(task => task.id),
           repeatingTaskIds: repeatingTaskIds,
-          nonRepeatingTaskIds: nonRepeatingTaskIds
+          nonRepeatingTaskIds: nonRepeatingTaskIds,
+          completedTaskTexts: completedTasks.map(task => ({
+            id: task.id,
+            text: task.text,
+            priority: task.priority
+          }))
         };
         return newData;
       } else {
@@ -180,7 +194,12 @@ function App() {
           totalTasks: totalTasksForToday,
           completedTaskIds: completedTasks.map(task => task.id),
           repeatingTaskIds: repeatingTaskIds,
-          nonRepeatingTaskIds: nonRepeatingTaskIds
+          nonRepeatingTaskIds: nonRepeatingTaskIds,
+          completedTaskTexts: completedTasks.map(task => ({
+            id: task.id,
+            text: task.text,
+            priority: task.priority
+          }))
         }];
       }
     });
@@ -216,9 +235,11 @@ function App() {
         setTasks(prevTasks => {
           // Get all repeating tasks
           const repeatingTasks = prevTasks.filter(task => task.isRepeating);
+          // Get non-repeating tasks
+          const nonRepeatingTasks = prevTasks.filter(task => !task.isRepeating);
           
           // Create new instances of repeating tasks for today
-          const newTasks = repeatingTasks.map(task => ({
+          const newRepeatingTasks = repeatingTasks.map(task => ({
             ...task,
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             completed: false,
@@ -226,8 +247,8 @@ function App() {
             lastCompleted: task.completed ? Date.now() : task.lastCompleted
           }));
 
-          // Only keep repeating tasks
-          return [...newTasks];
+          // Return both repeating and non-repeating tasks
+          return [...newRepeatingTasks, ...nonRepeatingTasks];
         });
 
         // Update daily data for the new day
@@ -247,7 +268,8 @@ function App() {
               totalTasks: 0, // Will be updated with repeating tasks when they're added
               completedTaskIds: [],
               repeatingTaskIds: [], // Will be populated with repeating tasks when they're added
-              nonRepeatingTaskIds: [] // Will be empty for new day
+              nonRepeatingTaskIds: [], // Will be empty for new day
+              completedTaskTexts: []
             };
             return newData;
           } else {
@@ -257,7 +279,8 @@ function App() {
               totalTasks: 0, // Will be updated with repeating tasks when they're added
               completedTaskIds: [],
               repeatingTaskIds: [], // Will be populated with repeating tasks when they're added
-              nonRepeatingTaskIds: [] // Will be empty for new day
+              nonRepeatingTaskIds: [], // Will be empty for new day
+              completedTaskTexts: []
             }];
           }
         });
@@ -300,49 +323,77 @@ function App() {
     // Get all days with completed tasks
     const activeDays = dailyData.filter(day => day.completedTasks > 0);
     
-    // Calculate streaks
-    let currentStreak = 0;
-    let longestStreak = 0;
-    let tempStreak = 0;
-    
-    // Sort days in ascending order
+    // Sort days in descending order (most recent first)
     const sortedDays = [...activeDays].sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
+      new Date(b.date).getTime() - new Date(a.date).getTime()
     );
 
-    for (let i = 0; i < sortedDays.length; i++) {
-      const currentDate = new Date(sortedDays[i].date);
-      const nextDate = i < sortedDays.length - 1 ? new Date(sortedDays[i + 1].date) : null;
+    // Calculate current streak - counting consecutive days up to today
+    let currentStreak = 0;
+    let checkDate = new Date(todayStr);
+    
+    // Check if we have activity today first
+    const todayActivity = sortedDays.find(day => day.date === todayStr);
+    if (todayActivity) {
+      currentStreak = 1; // Start with 1 for today
       
-      // Calculate day difference
-      const dayDiff = nextDate 
-        ? Math.floor((nextDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24))
-        : 0;
-
-      if (dayDiff === 1) {
-        tempStreak++;
-      } else {
-        tempStreak = 1;
+      // Now check previous days consecutively
+      for (let i = 1; i <= 366; i++) { // Check up to a year back
+        const prevDate = new Date(checkDate);
+        prevDate.setDate(prevDate.getDate() - 1);
+        const prevDateStr = format(prevDate, 'yyyy-MM-dd');
+        
+        // Check if this previous date exists in our active days
+        const hasPrevDay = sortedDays.some(day => day.date === prevDateStr);
+        
+        if (hasPrevDay) {
+          currentStreak++;
+          checkDate = prevDate; // Move to check the next previous day
+        } else {
+          break; // Break the streak when we find a day with no activity
+        }
       }
-
+    }
+    
+    // Calculate longest streak
+    let longestStreak = currentStreak;
+    let tempStreak = 0;
+    
+    // Sort days in ascending order for longest streak calculation
+    const chronologicalDays = [...activeDays].sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    
+    for (let i = 0; i < chronologicalDays.length; i++) {
+      const currentDate = new Date(chronologicalDays[i].date);
+      
+      if (i === 0) {
+        tempStreak = 1;
+      } else {
+        const prevDate = new Date(chronologicalDays[i-1].date);
+        const dayDiff = Math.floor((currentDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (dayDiff === 1) {
+          tempStreak++;
+        } else {
+          tempStreak = 1; // Reset streak when there's a gap
+        }
+      }
+      
       if (tempStreak > longestStreak) {
         longestStreak = tempStreak;
       }
-
-      // Check if this is part of the current streak
-      const todayDate = new Date(todayStr);
-      const daysSinceLast = Math.floor((todayDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (daysSinceLast === 0) {
-        currentStreak = tempStreak;
-      }
     }
 
-    // Calculate completion rate
-    const totalCompletedTasks = dailyData.reduce((sum, day) => sum + day.completedTasks, 0);
-    const totalPossibleTasks = dailyData.reduce((sum, day) => sum + day.totalTasks, 0);
-    const completionRate = totalPossibleTasks > 0 
-      ? Math.round((totalCompletedTasks / totalPossibleTasks) * 100) 
+    // Calculate completion rate for all tasks (both repeating and non-repeating)
+    const totalCompletedTasks = dailyData.reduce((sum, day) => 
+      sum + day.completedTasks, 0);
+    
+    const totalTasks = dailyData.reduce((sum, day) => 
+      sum + day.totalTasks, 0);
+    
+    const completionRate = totalTasks > 0 
+      ? Math.round((totalCompletedTasks / totalTasks) * 100) 
       : 0;
 
     return {
@@ -400,25 +451,49 @@ function App() {
 
       setDailyData(prevData => {
         const existingDayIndex = prevData.findIndex(d => d.date === todayStr);
+        
+        // Get only today's tasks for proper total count
+        const repeatingTaskIds = updatedTasks
+          .filter(task => task.isRepeating)
+          .map(task => task.id);
+        
+        const nonRepeatingTaskIds = updatedTasks
+          .filter(task => !task.isRepeating) // Include all non-repeating tasks, not just ones created today
+          .map(task => task.id);
+        
+        // Correctly calculate total tasks for today
+        const totalTasksForToday = repeatingTaskIds.length + nonRepeatingTaskIds.length;
+        
         if (existingDayIndex >= 0) {
           const newData = [...prevData];
           newData[existingDayIndex] = {
+            ...newData[existingDayIndex], // Preserve existing fields like remarks
             date: todayStr,
             completedTasks: completedTasks.length,
-            totalTasks: updatedTasks.length,
+            totalTasks: totalTasksForToday,
             completedTaskIds: completedTasks.map(task => task.id),
-            repeatingTaskIds: updatedTasks.filter(task => task.isRepeating).map(task => task.id),
-            nonRepeatingTaskIds: updatedTasks.filter(task => !task.isRepeating).map(task => task.id)
+            repeatingTaskIds: repeatingTaskIds,
+            nonRepeatingTaskIds: nonRepeatingTaskIds,
+            completedTaskTexts: completedTasks.map(task => ({
+              id: task.id,
+              text: task.text,
+              priority: task.priority
+            }))
           };
           return newData;
         } else {
           return [...prevData, {
             date: todayStr,
             completedTasks: completedTasks.length,
-            totalTasks: updatedTasks.length,
+            totalTasks: totalTasksForToday,
             completedTaskIds: completedTasks.map(task => task.id),
-            repeatingTaskIds: updatedTasks.filter(task => task.isRepeating).map(task => task.id),
-            nonRepeatingTaskIds: updatedTasks.filter(task => !task.isRepeating).map(task => task.id)
+            repeatingTaskIds: repeatingTaskIds,
+            nonRepeatingTaskIds: nonRepeatingTaskIds,
+            completedTaskTexts: completedTasks.map(task => ({
+              id: task.id,
+              text: task.text,
+              priority: task.priority
+            }))
           }];
         }
       });
@@ -445,31 +520,30 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8 font-ubuntu">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-8 h-[calc(100vh-2rem)]">
-        <div className="col-span-1 md:col-span-3 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <img className='w-10' src="/src/components/icon.png" alt="" />
-              <h1 className="text-3xl font-bold tracking-tight">Daily Tasks</h1>
+    <div className="min-h-screen dark:bg-[#18181c] bg-gray-100 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-6 gap-4 lg:gap-6 min-h-[calc(100vh-2rem)]">
+        <div className="col-span-1 lg:col-span-4 flex flex-col overflow-hidden">
+          <div className="flex flex-col sm:flex-row items-center justify-between mb-4 sm:mb-6 lg:mb-8">
+            <div className="flex items-center gap-3 mb-3 sm:mb-0">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight dark:text-slate-50 text-slate-900">Doing <span className='text-[#ff4101]'>.</span></h1>
             </div>
-            <div className="hidden md:flex text-lg items-center justify-center gap-2 text-gray-400">
-              {format(currentTime, 'EEEE, MMMM d, yyyy')}
-              <span className="ml-2 font-semibold text-4xl font-mono tracking-tight">
+            <div className="flex flex-col text-center sm:text-right text-gray-900 dark:text-gray-400">
+              <span className="font-semibold text-2xl sm:text-3xl md:text-4xl font-mono tracking-tight">
                 {format(currentTime, 'hh:mm:ss a')}
               </span>
+              <span className='text-gray-900 dark:text-zinc-400/50 text-xs sm:text-sm'>{format(currentTime, 'EEEE, MMMM d, yyyy')}</span>
             </div>
           </div>
 
           <QuickLinks />
           
-          <div className="flex gap-4 mb-6">
+          <div className="flex flex-wrap gap-2 sm:gap-4 mb-4 sm:mb-6">
             {(['all', 'active', 'completed'] as Filter[]).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-4 py-2 rounded-full transition-all ${
-                  filter === f ? 'bg-blue-600' : 'bg-gray-800'
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base rounded-full transition-all ${
+                  filter === f ? 'bg-[#ff4101] text-white' : 'bg-gray-200 dark:bg-[#222126] text-gray-700 dark:text-white'
                 }`}
               >
                 {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -478,20 +552,22 @@ function App() {
           </div>
 
           <TaskInput onAddTask={addTask} />
-          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar">
           <TaskList
             tasks={filteredTasks}
             onToggleTask={toggleTask}
             onDeleteTask={deleteTask}
             onUpdateTask={updateTask}
-              onReorderTasks={reorderTasks}
+            onReorderTasks={reorderTasks}
           />
           </div>
         </div>
 
-        <div className="col-span-1 w-[80%] md:col-span-2 bg-gray-800 p-4 md:p-6 rounded-xl overflow-y-auto custom-scrollbar">
-          <h2 className="text-2xl font-bold mb-6">Analytics</h2>
-          <Analytics data={analyticsData} />
+        <div className="col-span-1 lg:col-span-2 h-fit bg-white dark:bg-[#222126] p-3 sm:p-4 md:p-6 shadow-xl rounded-xl sm:rounded-2xl lg:rounded-3xl overflow-y-auto custom-scrollbar mt-4 lg:mt-0">
+          <h2 className="text-lg sm:text-xl font-normal mb-3 sm:mb-4 text-gray-800 dark:text-zinc-200">Analytics</h2>
+          <div className="mb-4">
+            <Analytics data={analyticsData} />
+          </div>
           <Heatmap 
             data={heatmapData} 
             dailyData={dailyData}
@@ -501,6 +577,13 @@ function App() {
           />
         </div>
       </div>
+
+      {/* Display the URL title at the bottom */}
+      {urlTitle && (
+        <div className="fixed bottom-0 left-0 w-full bg-white/90 dark:bg-[#222126]/90 text-center py-1 sm:py-2 text-xs sm:text-sm">
+          <span className="text-gray-700 dark:text-gray-300">URL Title: {urlTitle}</span>
+        </div>
+      )}
     </div>
   );
 }

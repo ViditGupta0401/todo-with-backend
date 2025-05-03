@@ -39,12 +39,6 @@ function SortableTaskItem({ task, onToggleTask, onDeleteTask, onUpdateTask, edit
     transition,
   };
 
-  const priorityColors = {
-    high: 'bg-red-500/20 text-red-400',
-    medium: 'bg-yellow-500/20 text-yellow-400',
-    low: 'bg-green-500/20 text-green-400'
-  };
-
   const saveEdit = (id: string) => {
     onUpdateTask(id, editText);
     setEditingId(null);
@@ -59,69 +53,73 @@ function SortableTaskItem({ task, onToggleTask, onDeleteTask, onUpdateTask, edit
       ref={setNodeRef}
       style={style}
       className={clsx(
-        'group flex items-center gap-3 p-3 rounded-lg transition-all',
-        task.completed ? 'bg-gray-800' : 'bg-gray-800/50',
-        'hover:bg-gray-700',
-        isDragging && 'shadow-lg bg-gray-700'
+        'group flex items-center gap-1.5 xs:gap-2 sm:gap-3 p-2 xs:p-2.5 sm:p-3 rounded-lg sm:rounded-xl md:rounded-2xl transition-all',
+        task.completed ? 
+          'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400' : 
+          'bg-white dark:bg-zinc-800/50 text-gray-800 dark:text-white',
+        'hover:bg-gray-200 dark:hover:bg-gray-700',
+        isDragging && 'shadow-lg bg-gray-200 dark:bg-gray-700'
       )}
     >
       <div 
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing p-1 rounded flex items-center"
+        className="cursor-grab active:cursor-grabbing p-0.5 sm:p-1 rounded flex items-center"
       >
-        <GripVertical size={18} className="text-gray-400" />
+        <GripVertical size={14} className="text-gray-400" />
       </div>
 
       <button
         onClick={() => onToggleTask(task.id)}
         className={clsx(
-          'w-6 h-6 rounded-full flex items-center justify-center transition-all',
-          task.completed ? 'bg-green-500' : 'border-2 border-gray-500'
+          'w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center transition-all',
+          task.completed ? 'bg-green-500' : 'border-2 border-gray-400 dark:border-gray-500'
         )}
       >
-        {task.completed && <Check size={16} className="text-white" />}
+        {task.completed && <Check size={12} className="text-white" />}
       </button>
 
       {editingId === task.id ? (
-        <div className="flex-1 flex gap-2">
+        <div className="flex-1 flex gap-1 sm:gap-2">
           <input
             type="text"
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
-            className="flex-1 bg-gray-700 text-white rounded px-2 py-1"
+            className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white text-xs sm:text-sm rounded px-1.5 sm:px-2 py-0.5 sm:py-1"
             autoFocus
           />
           <button
             onClick={() => saveEdit(task.id)}
-            className="p-1 text-green-500 hover:text-green-400"
+            className="p-0.5 sm:p-1 text-green-600 dark:text-green-500 hover:text-green-500 dark:hover:text-green-400"
           >
-            <Save size={18} />
+            <Save size={14} className="sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
           </button>
           <button
             onClick={cancelEdit}
-            className="p-1 text-red-500 hover:text-red-400"
+            className="p-0.5 sm:p-1 text-red-600 dark:text-red-500 hover:text-red-500 dark:hover:text-red-400"
           >
-            <X size={18} />
+            <X size={14} className="sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
           </button>
         </div>
       ) : (
-        <div className="flex-1 flex items-center gap-2">
+        <div className="flex-1 flex items-center gap-1 sm:gap-2">
           <span
             className={clsx(
-              'text-white',
-              task.completed && 'line-through text-gray-400'
+              'text-xs sm:text-sm md:text-base line-clamp-2',
+              task.completed ? 'line-through text-gray-400 dark:text-gray-400' : 'text-gray-800 dark:text-white'
             )}
           >
             {task.text}
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
             {task.isRepeating && (
-              <RefreshCw size={14} className="text-blue-400" />
+              <RefreshCw size={12} className="text-blue-600 dark:text-blue-400" />
             )}
             <span className={clsx(
-              'text-xs px-1.5 py-0.5 rounded-full',
-              priorityColors[task.priority]
+              'text-[8px] xs:text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded-full whitespace-nowrap',
+              task.priority === 'high' ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400' :
+              task.priority === 'medium' ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-600 dark:text-yellow-400' :
+              'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400'
             )}>
               {task.priority}
             </span>
@@ -130,22 +128,22 @@ function SortableTaskItem({ task, onToggleTask, onDeleteTask, onUpdateTask, edit
       )}
 
       <div className={clsx(
-        'flex gap-2 transition-opacity',
+        'flex gap-1 sm:gap-2 transition-opacity shrink-0',
         'opacity-0 group-hover:opacity-100'
       )}>
         {editingId !== task.id && (
           <button
             onClick={() => setEditingId(task.id)}
-            className="p-1 text-gray-400 hover:text-white"
+            className="p-0.5 sm:p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white"
           >
-            <Edit2 size={18} />
+            <Edit2 size={14} className="sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
           </button>
         )}
         <button
           onClick={() => onDeleteTask(task.id)}
-          className="p-1 text-red-500 hover:text-red-400"
+          className="p-0.5 sm:p-1 text-red-600 dark:text-red-500 hover:text-red-500 dark:hover:text-red-400"
         >
-          <Trash2 size={18} />
+          <Trash2 size={14} className="sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
         </button>
       </div>
     </div>
