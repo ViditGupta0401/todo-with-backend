@@ -107,50 +107,63 @@ export const QuickLinks: React.FC = () => {
       </div>
 
       {showAddForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <form onSubmit={handleAddLink} className="bg-white dark:bg-gray-800 p-6 rounded-lg flex flex-col gap-4 min-w-[400px]">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Add Quick Link</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+          <form onSubmit={handleAddLink} className="bg-gradient-to-br from-white to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 p-4 sm:p-5 md:p-6 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-700 max-w-md w-full">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-zinc-800 dark:text-zinc-100">
+                Add Quick Link
+              </h3>
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white"
+                className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-white p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-full transition-colors"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <input
-              type="text"
-              placeholder="Title"
-              value={newLink.title}
-              onChange={e => setNewLink(prev => ({ ...prev, title: e.target.value }))}
-              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg"
-            />
-            <input
-              type="text"
-              placeholder="URL"
-              value={newLink.url}
-              onChange={e => setNewLink(prev => ({ ...prev, url: e.target.value }))}
-              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg"
-            />
-            <div className="flex gap-2 justify-end">
+            
+            <div className="space-y-4">
+              <div className="bg-white dark:bg-zinc-700 p-3 rounded-2xl shadow-md">
+                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-300 mb-2">Link Title</p>
+                <input
+                  type="text"
+                  placeholder="e.g. GitHub"
+                  value={newLink.title}
+                  onChange={e => setNewLink(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-white rounded-xl text-xs sm:text-sm p-3 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#ff4101] border border-zinc-200 dark:border-zinc-600"
+                />
+              </div>
+              
+              <div className="bg-white dark:bg-zinc-700 p-3 rounded-2xl shadow-md">
+                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-300 mb-2">URL</p>
+                <input
+                  type="text"
+                  placeholder="e.g. https://github.com"
+                  value={newLink.url}
+                  onChange={e => setNewLink(prev => ({ ...prev, url: e.target.value }))}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-white rounded-xl text-xs sm:text-sm p-3 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#ff4101] border border-zinc-200 dark:border-zinc-600"
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-2 justify-end mt-5">
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
+                className="px-4 py-2 text-xs sm:text-sm bg-zinc-500 hover:bg-zinc-600 text-white rounded-xl transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 flex items-center gap-2"
+                className="px-4 py-2 text-xs sm:text-sm bg-[#ff4101] hover:bg-[#ee3d00] text-white rounded-xl transition-colors flex items-center gap-2"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Add
+                Add Link
               </button>
             </div>
           </form>
