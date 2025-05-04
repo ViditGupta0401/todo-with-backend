@@ -16,18 +16,52 @@ interface DailyData {
   remark?: string;
 }
 
+interface FutureEvent {
+  id: string; // Add unique ID for each event
+  date: string;
+  title: string;
+}
+
 interface HeatmapProps {
   data: { [key: string]: number };
   dailyData: DailyData[];
   tasks: Task[];
   selectedDate?: Date;
   onDateChange?: (date: Date) => void;
+  futureEvents?: FutureEvent[];
+  onFutureEventAdd?: (event: FutureEvent) => void;
+  onFutureEventRemove?: (date: string) => void;
 }
 
-export const Heatmap: React.FC<HeatmapProps> = ({ data, dailyData, tasks, selectedDate = new Date(), onDateChange }) => {
+export const Heatmap: React.FC<HeatmapProps> = ({ 
+  data, 
+  dailyData, 
+  tasks, 
+  selectedDate = new Date(), 
+  onDateChange,
+  futureEvents = [],
+  onFutureEventAdd,
+  onFutureEventRemove
+}) => {
   const [selectedDay, setSelectedDay] = useState<DailyData | null>(null);
   const [remarkInput, setRemarkInput] = useState('');
+  const [isEditingRemark, setIsEditingRemark] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  
+  // State for future events management
+  const [selectedFutureEvent, setSelectedFutureEvent] = useState<FutureEvent | null>(null);
+  const [selectedDateEvents, setSelectedDateEvents] = useState<FutureEvent[]>([]);
+  const [eventTitleInput, setEventTitleInput] = useState('');
+  const [isAddingEvent, setIsAddingEvent] = useState(false);
+
+  // Load future events from localStorage if not provided via props
+  const [localFutureEvents, setLocalFutureEvents] = useState<FutureEvent[]>(() => {
+    const savedEvents = localStorage.getItem('todo-tracker-future-events');
+    return savedEvents ? JSON.parse(savedEvents) : [];
+  });
+
+  // Use provided future events or local state if not provided
+  const allFutureEvents = futureEvents.length > 0 ? futureEvents : localFutureEvents;
 
   const monthStart = startOfMonth(selectedDate);
   const monthEnd = endOfMonth(selectedDate);
@@ -109,8 +143,118 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, dailyData, tasks, select
     }
   };
 
+  const handleEditRemark = () => {
+    setIsEditingRemark(true);
+  };
+
   const hasRemark = (day: string) => {
     return dailyData.some(d => d.date === day && d.remark);
+  };
+
+  const getEventsForDay = (day: string): FutureEvent[] => {
+    return allFutureEvents.filter(event => event.date === day);
+  };
+
+  const handleAddEvent = (day: Date) => {
+    const dayStr = format(day, 'yyyy-MM-dd');
+    
+    // Check if it's a future date
+    if (!isAfter(day, adjustedToday)) {
+      const errorMsg = document.createElement('div');
+      errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg';
+      errorMsg.textContent = 'Events can only be added to future dates';
+      document.body.appendChild(errorMsg);
+      
+      setTimeout(() => {
+        document.body.removeChild(errorMsg);
+      }, 2000);
+      return;
+    }
+    
+    // Get all events for this day
+    const eventsForDay = getEventsForDay(dayStr);
+    setSelectedDateEvents(eventsForDay);
+    
+    setIsAddingEvent(true);
+    setEventTitleInput('');
+    setSelectedFutureEvent({ id: '', date: dayStr, title: '' });
+  };
+
+  const handleSaveEvent = () => {
+    if (!selectedFutureEvent || !eventTitleInput.trim()) return;
+    
+    const newEvent: FutureEvent = {
+      id: crypto.randomUUID(),
+      date: selectedFutureEvent.date,
+      title: eventTitleInput.trim()
+    };
+    
+    // Use the callback if provided, otherwise manage locally
+    if (onFutureEventAdd) {
+      onFutureEventAdd(newEvent);
+    } else {
+      const updatedEvents = [...localFutureEvents, newEvent];
+      setLocalFutureEvents(updatedEvents);
+      
+      // Also update the selected date events
+      const updatedSelectedDateEvents = [...selectedDateEvents, newEvent];
+      setSelectedDateEvents(updatedSelectedDateEvents);
+      
+      localStorage.setItem('todo-tracker-future-events', JSON.stringify(updatedEvents));
+    }
+    
+    // After saving, don't close the modal but reset the input to allow adding more events
+    setEventTitleInput('');
+    
+    // Show success message
+    const successMsg = document.createElement('div');
+    successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg';
+    successMsg.textContent = 'Event added successfully';
+    document.body.appendChild(successMsg);
+    
+    setTimeout(() => {
+      document.body.removeChild(successMsg);
+    }, 2000);
+  };
+
+  const handleRemoveEvent = (id: string) => {
+    // Use the callback if provided, otherwise manage locally
+    if (onFutureEventRemove) {
+      onFutureEventRemove(id);
+    } else {
+      const updatedEvents = localFutureEvents.filter(event => event.id !== id);
+      setLocalFutureEvents(updatedEvents);
+      
+      // Also update the selected date events
+      const updatedSelectedDateEvents = selectedDateEvents.filter(event => event.id !== id);
+      setSelectedDateEvents(updatedSelectedDateEvents);
+      
+      localStorage.setItem('todo-tracker-future-events', JSON.stringify(updatedEvents));
+    }
+    
+    // If there are no more events for this day, close the modal
+    if (selectedDateEvents.length <= 1) {
+      setSelectedFutureEvent(null);
+    }
+    
+    // Show success message
+    const successMsg = document.createElement('div');
+    successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg';
+    successMsg.textContent = 'Event removed successfully';
+    document.body.appendChild(successMsg);
+    
+    setTimeout(() => {
+      document.body.removeChild(successMsg);
+    }, 2000);
+  };
+
+  const isFutureEvent = (day: string) => {
+    return allFutureEvents.some(event => event.date === day);
+  };
+
+  const getFutureEventTitle = (day: string) => {
+    const events = getEventsForDay(day);
+    return events.map(event => event.title).join(', ');
   };
 
   return (
@@ -171,25 +315,53 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, dailyData, tasks, select
           const isToday = isSameDay(day, adjustedToday);
           const isFuture = isAfter(day, adjustedToday);
           const dayHasRemark = hasRemark(dateStr);
+          const dayHasEvent = isFutureEvent(dateStr);
+          const eventTitle = getFutureEventTitle(dateStr);
           
           return (
             <div
               key={dateStr}
               className={clsx(
-                'aspect-square relative w-5 h-5 xs:w-6 xs:h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 rounded md:rounded-xl transition-all cursor-pointer hover:ring-1  sm:hover:ring-2 hover:ring-blue-500',
+                'aspect-square relative w-5 h-5 xs:w-6 xs:h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 rounded md:rounded-xl transition-all cursor-pointer',
                 getColor(taskCount),
                 isToday && 'ring-1 sm:ring-2 ring-blue-500',
-                isFuture && 'opacity-50  '
+                isFuture && 'opacity-70',
+                dayHasEvent && 'ring-2 ring-orange-500 hover:bg-orange-200/40 dark:hover:bg-orange-900/30',
+                !dayHasEvent && 'hover:ring-1 sm:hover:ring-2 hover:ring-blue-500'
               )}
               style={{ opacity }}
-              title={`${format(day, 'MMM d')}: ${taskCount} task${taskCount !== 1 ? 's' : ''} completed`}
-              onClick={() => handleDayClick(day)}
+              title={`${format(day, 'MMM d')}: ${taskCount} task${taskCount !== 1 ? 's' : ''} completed${dayHasEvent ? ` | Events: ${eventTitle}` : ''}`}
+              onClick={() => {
+                if (dayHasEvent) {
+                  const events = getEventsForDay(dateStr);
+                  setSelectedDateEvents(events);
+                  setSelectedFutureEvent(events[0]);
+                  setIsAddingEvent(false);
+                } else if (isFuture) {
+                  handleAddEvent(day);
+                } else {
+                  handleDayClick(day);
+                }
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                if (dayHasEvent) {
+                  const events = getEventsForDay(dateStr);
+                  setSelectedDateEvents(events);
+                  setSelectedFutureEvent(events[0]);
+                } else if (isFuture) {
+                  handleAddEvent(day);
+                }
+              }}
             >
               <div className="flex items-center justify-center h-full text-[8px] xs:text-[9px] sm:text-[10px] md:text-xs text-black dark:text-gray-300">
                 {format(day, 'd')}
               </div>
               {dayHasRemark && (
                 <div className="absolute top-0 right-0 w-1 h-1 sm:w-1.5 sm:h-1.5 md:w-2 md:h-2 bg-yellow-400 rounded-full"></div>
+              )}
+              {dayHasEvent && (
+                <div className="absolute bottom-0 right-0 w-1 h-1 sm:w-1.5 sm:h-1.5 md:w-2 md:h-2 bg-orange-500 rounded-full"></div>
               )}
             </div>
           );
@@ -198,15 +370,15 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, dailyData, tasks, select
 
       {/* Modal for showing daily task information */}
       {selectedDay && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 md:p-6 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <div className="flex justify-between items-center mb-2 sm:mb-4">
-              <h3 className="text-base sm:text-lg md:text-xl font-semibold">
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-gradient-to-br from-white to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 p-4 sm:p-5 md:p-6 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-700 max-w-md w-full max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div className="flex justify-between items-center mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-zinc-800 dark:text-zinc-100">
                 {format(new Date(selectedDay.date), 'MMMM d, yyyy')}
               </h3>
               <button
                 onClick={() => setSelectedDay(null)}
-                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white p-1"
+                className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-white p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-full transition-colors"
               >
                 <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -214,36 +386,38 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, dailyData, tasks, select
               </button>
             </div>
             
-            <div className="space-y-3 sm:space-y-4">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Completion Rate (All Tasks)</p>
-                <p className="text-lg sm:text-xl md:text-2xl font-bold">
-                  {selectedDay.totalTasks > 0 
-                    ? Math.round((selectedDay.completedTasks / selectedDay.totalTasks) * 100)
-                    : 0}%
-                </p>
-                <p className="text-[10px] sm:text-xs text-gray-500">
-                  ({selectedDay.completedTasks} / {selectedDay.totalTasks})
-                </p>
+            <div className="space-y-4 sm:space-y-5">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div className="bg-white dark:bg-zinc-700 p-3 rounded-2xl shadow-md">
+                  <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-300">All Tasks</p>
+                  <p className="text-lg sm:text-xl font-bold text-indigo-600 dark:text-indigo-400">
+                    {selectedDay.totalTasks > 0 
+                      ? Math.round((selectedDay.completedTasks / selectedDay.totalTasks) * 100)
+                      : 0}%
+                  </p>
+                  <p className="text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400">
+                    ({selectedDay.completedTasks} / {selectedDay.totalTasks})
+                  </p>
+                </div>
+                
+                <div className="bg-white dark:bg-zinc-700 p-3 rounded-2xl shadow-md">
+                  <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-300">Non-Repeating</p>
+                  <p className="text-lg sm:text-xl font-bold text-indigo-600 dark:text-indigo-400">
+                    {selectedDay.nonRepeatingTaskIds.length > 0 
+                      ? Math.round((selectedDay.completedTaskIds.filter(id => 
+                          selectedDay.nonRepeatingTaskIds.includes(id)).length / 
+                          selectedDay.nonRepeatingTaskIds.length) * 100)
+                      : 0}%
+                  </p>
+                  <p className="text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400">
+                    ({selectedDay.completedTaskIds.filter(id => selectedDay.nonRepeatingTaskIds.includes(id)).length} / {selectedDay.nonRepeatingTaskIds.length})
+                  </p>
+                </div>
               </div>
               
-              <div>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Completion Rate (Non-Repeating)</p>
-                <p className="text-base sm:text-lg font-bold">
-                  {selectedDay.nonRepeatingTaskIds.length > 0 
-                    ? Math.round((selectedDay.completedTaskIds.filter(id => 
-                        selectedDay.nonRepeatingTaskIds.includes(id)).length / 
-                        selectedDay.nonRepeatingTaskIds.length) * 100)
-                    : 0}%
-                </p>
-                <p className="text-[10px] sm:text-xs text-gray-500">
-                  ({selectedDay.completedTaskIds.filter(id => selectedDay.nonRepeatingTaskIds.includes(id)).length} / {selectedDay.nonRepeatingTaskIds.length})
-                </p>
-              </div>
-              
-              <div>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Completed Tasks</p>
-                <div className="mt-1 sm:mt-2 space-y-1.5 sm:space-y-2 max-h-[30vh] sm:max-h-[40vh] overflow-y-auto custom-scrollbar pr-1 sm:pr-2">
+              <div className="bg-white dark:bg-zinc-700 p-3 rounded-2xl shadow-md">
+                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-300 mb-2">Completed Tasks</p>
+                <div className="mt-1 sm:mt-2 space-y-1.5 sm:space-y-2">
                   {selectedDay.completedTaskIds.map(taskId => {
                     // First check if task exists in the current tasks list
                     const task = tasks.find(t => t.id === taskId);
@@ -251,14 +425,14 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, dailyData, tasks, select
                     // If task exists in current list, display it
                     if (task) {
                       return (
-                        <div key={taskId} className="flex items-center gap-1.5 sm:gap-2">
+                        <div key={taskId} className="flex items-center gap-1.5 sm:gap-2 bg-zinc-50 dark:bg-zinc-800 p-2 rounded-xl">
                           <div className={clsx(
-                            'w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full',
+                            'w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full',
                             task.priority === 'high' ? 'bg-red-500' :
                             task.priority === 'medium' ? 'bg-yellow-500' :
                             'bg-green-500'
                           )} />
-                          <span className="text-xs sm:text-sm">{task.text}</span>
+                          <span className="text-xs sm:text-sm text-zinc-800 dark:text-zinc-200">{task.text}</span>
                         </div>
                       );
                     } 
@@ -267,14 +441,14 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, dailyData, tasks, select
                     const deletedTask = selectedDay.completedTaskTexts?.find(t => t.id === taskId);
                     if (deletedTask) {
                       return (
-                        <div key={taskId} className="flex items-center gap-1.5 sm:gap-2">
+                        <div key={taskId} className="flex items-center gap-1.5 sm:gap-2 bg-zinc-50 dark:bg-zinc-800 p-2 rounded-xl">
                           <div className={clsx(
-                            'w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full',
+                            'w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full',
                             deletedTask.priority === 'high' ? 'bg-red-500' :
                             deletedTask.priority === 'medium' ? 'bg-yellow-500' :
                             'bg-green-500'
                           )} />
-                          <span className="text-xs sm:text-sm">{deletedTask.text}</span>
+                          <span className="text-xs sm:text-sm text-zinc-800 dark:text-zinc-200">{deletedTask.text}</span>
                         </div>
                       );
                     }
@@ -284,34 +458,182 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, dailyData, tasks, select
                 </div>
               </div>
               
-              <div>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Total Tasks</p>
-                <p className="text-sm sm:text-base md:text-lg">{selectedDay.totalTasks}</p>
-              </div>
-
               {/* Remark section */}
-              <div className="mt-3 sm:mt-4 border-t border-gray-200 dark:border-gray-700 pt-3 sm:pt-4">
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-1 sm:mb-2">Remark</p>
-                <textarea 
-                  className="w-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white rounded text-xs sm:text-sm p-2 sm:p-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Add a remark for this day"
-                  rows={3}
-                  value={remarkInput}
-                  onChange={(e) => setRemarkInput(e.target.value)}
-                ></textarea>
-                <button
-                  onClick={handleRemarkSave}
-                  className="mt-2 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-                >
-                  Save Remark
-                </button>
+              <div className="bg-white dark:bg-zinc-700 p-3 rounded-2xl shadow-md">
+                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-300 mb-2">Remark</p>
+                {isEditingRemark || !selectedDay.remark ? (
+                  <>
+                    <textarea 
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-white rounded-xl text-xs sm:text-sm p-3 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500 border border-zinc-200 dark:border-zinc-600"
+                      placeholder="Add a remark for this day"
+                      rows={3}
+                      value={remarkInput}
+                      onChange={(e) => setRemarkInput(e.target.value)}
+                    ></textarea>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleRemarkSave}
+                        className="mt-2 px-4 py-2 text-xs sm:text-sm bg-orange-600 hover:bg-orange-700 text-white rounded-xl transition-colors"
+                      >
+                        Save Remark
+                      </button>
+                      {isEditingRemark && (
+                        <button
+                          onClick={() => {
+                            setIsEditingRemark(false);
+                            setRemarkInput('');
+                          }}
+                          className="mt-2 px-4 py-2 text-xs sm:text-sm bg-zinc-500 hover:bg-zinc-600 text-white rounded-xl transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl">
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs sm:text-sm text-zinc-700 dark:text-zinc-200">{selectedDay.remark}</p>
+                      <button
+                        onClick={handleEditRemark}
+                        className="p-2 rounded-full bg-zinc-200 dark:bg-zinc-600 hover:bg-zinc-300 dark:hover:bg-zinc-500 text-orange-600 dark:text-orange-400 transition-colors ml-2"
+                        title="Edit Remark"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-              {/* Display existing remark */}
-              {selectedDay.remark && (
-                <div className="mt-2 p-2 sm:p-3 bg-gray-100/50 dark:bg-gray-700/50 rounded">
-                  <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-200">{selectedDay.remark}</p>
-                </div>
+      {/* Modal for future events */}
+      {selectedFutureEvent && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-gradient-to-br from-white to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 p-4 sm:p-5 md:p-6 rounded-3xl shadow-2xl border border-orange-300 dark:border-orange-700 max-w-md w-full">
+            <div className="flex justify-between items-center mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-zinc-800 dark:text-zinc-100">
+                {isAddingEvent ? 'Add Event' : 'Future Events'}: {format(new Date(selectedFutureEvent.date), 'MMMM d, yyyy')}
+              </h3>
+              <button
+                onClick={() => setSelectedFutureEvent(null)}
+                className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-white p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-full transition-colors"
+              >
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {isAddingEvent ? (
+                <>
+                  <div className="bg-white dark:bg-zinc-700 p-3 rounded-2xl shadow-md">
+                    <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-300 mb-2">Event Title</p>
+                    <input
+                      type="text"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-white rounded-xl text-xs sm:text-sm p-3 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500 border border-zinc-200 dark:border-zinc-600"
+                      placeholder="Enter event title"
+                      value={eventTitleInput}
+                      onChange={(e) => setEventTitleInput(e.target.value)}
+                    />
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={handleSaveEvent}
+                        className="px-4 py-2 text-xs sm:text-sm bg-orange-600 hover:bg-orange-700 text-white rounded-xl transition-colors"
+                        disabled={!eventTitleInput.trim()}
+                      >
+                        Add Event
+                      </button>
+                      <button
+                        onClick={() => setSelectedFutureEvent(null)}
+                        className="px-4 py-2 text-xs sm:text-sm bg-zinc-500 hover:bg-zinc-600 text-white rounded-xl transition-colors"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Show existing events for this day */}
+                  {selectedDateEvents.length > 0 && (
+                    <div className="bg-white dark:bg-zinc-700 p-3 rounded-2xl shadow-md">
+                      <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-300 mb-2">Existing Events</p>
+                      <div className="space-y-2">
+                        {selectedDateEvents.map(event => (
+                          <div key={event.id} className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-800 p-2 rounded-xl">
+                            <span className="text-xs sm:text-sm text-zinc-800 dark:text-zinc-200">{event.title}</span>
+                            <button
+                              onClick={() => handleRemoveEvent(event.id)}
+                              className="p-1 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-700 text-red-500"
+                              title="Remove Event"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18"></path>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+                                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="bg-white dark:bg-zinc-700 p-4 rounded-2xl shadow-md">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center">
+                        <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-orange-500 rounded-full mr-2"></div>
+                        <p className="text-xs sm:text-sm font-medium text-orange-600 dark:text-orange-400">
+                          Upcoming Events ({selectedDateEvents.length})
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setIsAddingEvent(true);
+                          setEventTitleInput('');
+                        }}
+                        className="p-1.5 rounded-full bg-orange-500/20 text-orange-600 dark:text-orange-400 hover:bg-orange-500/30"
+                        title="Add Event"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="12" y1="5" x2="12" y2="19"></line>
+                          <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {selectedDateEvents.map(event => (
+                        <div key={event.id} className="bg-zinc-50 dark:bg-zinc-800 p-3 rounded-xl">
+                          <p className="text-sm sm:text-base text-zinc-800 dark:text-zinc-200 font-medium mb-1">
+                            {event.title}
+                          </p>
+                          <div className="flex justify-between items-center">
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                              {format(new Date(event.date), 'EEEE, MMMM d, yyyy')}
+                            </p>
+                            <button
+                              onClick={() => handleRemoveEvent(event.id)}
+                              className="p-1.5 text-xs sm:text-sm text-red-600 hover:text-red-700 rounded-lg"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </div>

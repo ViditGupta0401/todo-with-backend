@@ -44,7 +44,7 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onAddTask }) => {
   };
 
   return (
-    <div className="mb-4 sm:mb-6">
+    <div className="mb-4 m-1 sm:mb-6">
       <div className="relative">
         <input
           ref={inputRef}
@@ -53,7 +53,7 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onAddTask }) => {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Add a task (Shift+Enter for repeating)"
-          className="w-full sm:w-[85%] md:w-[75%] px-4 py-2 sm:px-6 sm:py-3 bg-white dark:bg-zinc-800 text-gray-800 dark:text-white text-sm sm:text-base rounded-2xl sm:rounded-3xl focus:outline-none focus:ring-2 focus:bg-gray-50 dark:focus:bg-[#181818] focus:ring-[#ff4101] transition-colors duration-200"
+          className="w-full shadow-xl sm:w-[85%] md:w-[75%] px-4 py-2 sm:px-6 sm:py-3 bg-white dark:bg-zinc-800 text-gray-800 dark:text-white text-sm sm:text-base rounded-2xl sm:rounded-3xl focus:outline-none focus:ring-2 focus:bg-gray-50 dark:focus:bg-[#181818] focus:ring-[#ff4101] transition-colors duration-200"
         />
         <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 sm:gap-2">
           <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${getPriorityColor()}`} />

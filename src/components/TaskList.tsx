@@ -48,6 +48,56 @@ function SortableTaskItem({ task, onToggleTask, onDeleteTask, onUpdateTask, edit
     setEditingId(null);
   };
 
+  // Function to extract URL from task text
+  const extractUrl = (text: string): string | null => {
+    // Match URLs after a space
+    const urlRegex = /\s(https?:\/\/[^\s]+|www\.[^\s]+\.[^\s]+)/i;
+    const match = text.match(urlRegex);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    return null;
+  };
+
+  // Format URL to ensure it has a protocol
+  const formatUrl = (url: string): string => {
+    if (!/^https?:\/\//i.test(url)) {
+      return `https://${url}`;
+    }
+    return url;
+  };
+
+  // Handle click on task text with URL
+  const handleTaskClick = () => {
+    const url = extractUrl(task.text);
+    if (url) {
+      window.open(formatUrl(url), '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  // Check if task text contains a URL
+  const hasUrl = extractUrl(task.text) !== null;
+
+  // Format task text to replace URL with icon
+  const formattedTaskText = () => {
+    if (!hasUrl) return task.text;
+    
+    const url = extractUrl(task.text);
+    if (!url) return task.text;
+    
+    // Replace the URL with a link icon
+    const textBeforeUrl = task.text.split(url)[0];
+    return (
+      <span className="flex items-center gap-1">
+        {textBeforeUrl.trim()} 
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0-7.07 7.07l1.71-1.71"></path>
+        </svg>
+      </span>
+    );
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -58,19 +108,25 @@ function SortableTaskItem({ task, onToggleTask, onDeleteTask, onUpdateTask, edit
           'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400' : 
           'bg-white dark:bg-zinc-800/50 text-gray-800 dark:text-white',
         'hover:bg-gray-200 dark:hover:bg-gray-700',
-        isDragging && 'shadow-lg bg-gray-200 dark:bg-gray-700'
+        isDragging && 'shadow-lg bg-gray-200 dark:bg-gray-700',
+        hasUrl && 'cursor-pointer'
       )}
+      onClick={hasUrl ? handleTaskClick : undefined}
     >
       <div 
         {...attributes}
         {...listeners}
         className="cursor-grab active:cursor-grabbing p-0.5 sm:p-1 rounded flex items-center"
+        onClick={(e) => e.stopPropagation()} // Prevent task click when dragging
       >
         <GripVertical size={14} className="text-gray-400" />
       </div>
 
       <button
-        onClick={() => onToggleTask(task.id)}
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent task click when toggling
+          onToggleTask(task.id);
+        }}
         className={clsx(
           'w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center transition-all',
           task.completed ? 'bg-green-500' : 'border-2 border-gray-400 dark:border-gray-500'
@@ -80,7 +136,7 @@ function SortableTaskItem({ task, onToggleTask, onDeleteTask, onUpdateTask, edit
       </button>
 
       {editingId === task.id ? (
-        <div className="flex-1 flex gap-1 sm:gap-2">
+        <div className="flex-1 flex gap-1 sm:gap-2" onClick={(e) => e.stopPropagation()}>
           <input
             type="text"
             value={editText}
@@ -106,12 +162,13 @@ function SortableTaskItem({ task, onToggleTask, onDeleteTask, onUpdateTask, edit
           <span
             className={clsx(
               'text-xs sm:text-sm md:text-base line-clamp-2',
-              task.completed ? 'line-through text-gray-400 dark:text-gray-400' : 'text-gray-800 dark:text-white'
+              task.completed ? 'line-through text-gray-400 dark:text-gray-400' : 'text-gray-800 dark:text-white',
+              hasUrl && 'text-blue-600 dark:text-blue-400'
             )}
           >
-            {task.text}
+            {formattedTaskText()}
           </span>
-          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
             {task.isRepeating && (
               <RefreshCw size={12} className="text-blue-600 dark:text-blue-400" />
             )}
@@ -127,10 +184,13 @@ function SortableTaskItem({ task, onToggleTask, onDeleteTask, onUpdateTask, edit
         </div>
       )}
 
-      <div className={clsx(
-        'flex gap-1 sm:gap-2 transition-opacity shrink-0',
-        'opacity-0 group-hover:opacity-100'
-      )}>
+      <div 
+        className={clsx(
+          'flex gap-1 sm:gap-2 transition-opacity shrink-0',
+          'opacity-0 group-hover:opacity-100'
+        )}
+        onClick={(e) => e.stopPropagation()} // Prevent task click when clicking buttons
+      >
         {editingId !== task.id && (
           <button
             onClick={() => setEditingId(task.id)}

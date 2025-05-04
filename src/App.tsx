@@ -7,7 +7,7 @@ import { QuickLinks } from './components/QuickLinks';
 import { useTheme } from './context/ThemeContext';
 import type { Task, Filter } from './types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import logo from './components/icon.png'
+import logo from './doing logo.png'
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
@@ -582,7 +582,8 @@ function App() {
         <div className="col-span-1 lg:col-span-4 flex flex-col overflow-hidden">
           <div className="flex flex-col sm:flex-row items-center justify-between mb-4 sm:mb-6 lg:mb-8">
             <div className="flex items-center gap-3 mb-3 sm:mb-0">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight dark:text-slate-50 text-slate-900">Doing <span className='text-[#ff4101]'>.</span></h1>
+              <img src={logo} className=' w-[10rem]' alt="" />
+              {/* <h1 className="text-2xl sm:text-3xl font-bold tracking-tight dark:text-slate-50 text-slate-900">Doing <span className='text-[#ff4101]'>.</span></h1> */}
             </div>
             <div className="flex flex-col text-center sm:text-right text-gray-900 dark:text-gray-400">
               <span className="font-semibold text-2xl sm:text-3xl md:text-4xl font-mono tracking-tight">
