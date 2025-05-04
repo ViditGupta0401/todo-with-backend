@@ -76,14 +76,27 @@ export const Heatmap: React.FC<HeatmapProps> = ({
   };
 
   const getColor = (count: number) => {
-    if (count === 0) return 'bg-gray-700';
-    if (count <= 1) return 'bg-green-900/80';
-    if (count <= 2) return 'bg-green-800/80';
-    if (count <= 3) return 'bg-green-700/80';
-    if (count <= 4) return 'bg-green-600/80';
-    if (count <= 5) return 'bg-green-500/70';
-    if (count <= 6) return 'bg-green-400/60';
-    return 'bg-green-300/80';
+    if (theme === 'light') {
+      // Light theme colors with better contrast
+      if (count === 0) return 'bg-gray-200';
+      if (count <= 1) return 'bg-green-200';
+      if (count <= 2) return 'bg-green-300';
+      if (count <= 3) return 'bg-green-400';
+      if (count <= 4) return 'bg-green-500';
+      if (count <= 5) return 'bg-green-600';
+      if (count <= 6) return 'bg-green-700';
+      return 'bg-green-800';
+    } else {
+      // Dark theme colors (unchanged)
+      if (count === 0) return 'bg-gray-700';
+      if (count <= 1) return 'bg-green-900/80';
+      if (count <= 2) return 'bg-green-800/80';
+      if (count <= 3) return 'bg-green-700/80';
+      if (count <= 4) return 'bg-green-600/80';
+      if (count <= 5) return 'bg-green-500/70';
+      if (count <= 6) return 'bg-green-400/60';
+      return 'bg-green-300/80';
+    }
   };
 
   // Calculate max tasks in a day for opacity scaling
@@ -101,6 +114,22 @@ export const Heatmap: React.FC<HeatmapProps> = ({
     if (dayData) {
       setSelectedDay(dayData);
       setRemarkInput(dayData.remark || '');
+    } else {
+      // Create a placeholder for past days that don't have data
+      const isPastDay = !isAfter(day, adjustedToday) && !isSameDay(day, adjustedToday);
+      if (isPastDay) {
+        const placeholderData: DailyData = {
+          date: dayStr,
+          completedTasks: 0,
+          totalTasks: 0,
+          completedTaskIds: [],
+          repeatingTaskIds: [],
+          nonRepeatingTaskIds: [],
+          completedTaskTexts: []
+        };
+        setSelectedDay(placeholderData);
+        setRemarkInput('');
+      }
     }
   };
 
@@ -158,8 +187,9 @@ export const Heatmap: React.FC<HeatmapProps> = ({
   const handleAddEvent = (day: Date) => {
     const dayStr = format(day, 'yyyy-MM-dd');
     
-    // Check if it's a future date
-    if (!isAfter(day, adjustedToday)) {
+    // Check if it's a future date compared to the current real date, not just the selected month's date
+    const currentDate = new Date();
+    if (!isAfter(day, currentDate)) {
       const errorMsg = document.createElement('div');
       errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg';
       errorMsg.textContent = 'Events can only be added to future dates';
@@ -257,6 +287,32 @@ export const Heatmap: React.FC<HeatmapProps> = ({
     return events.map(event => event.title).join(', ');
   };
 
+  // Refs for modal click-outside handling
+  const modalRef = React.useRef<HTMLDivElement>(null);
+  const eventModalRef = React.useRef<HTMLDivElement>(null);
+
+  const handleOutsideClick = (e: MouseEvent) => {
+    if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+      setSelectedDay(null);
+    }
+    
+    if (eventModalRef.current && !eventModalRef.current.contains(e.target as Node)) {
+      setSelectedFutureEvent(null);
+    }
+  };
+
+  React.useEffect(() => {
+    if (selectedDay || selectedFutureEvent) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    } else {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [selectedDay, selectedFutureEvent]);
+
   return (
     <div className="mt-3 flex flex-col items-center">
       <div className="flex items-center justify-between w-full mb-2 sm:mb-4">
@@ -325,19 +381,32 @@ export const Heatmap: React.FC<HeatmapProps> = ({
                 'aspect-square relative w-5 h-5 xs:w-6 xs:h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 rounded md:rounded-xl transition-all cursor-pointer',
                 getColor(taskCount),
                 isToday && 'ring-1 sm:ring-2 ring-blue-500',
-                isFuture && 'opacity-70',
-                dayHasEvent && 'ring-2 ring-orange-500 hover:bg-orange-200/40 dark:hover:bg-orange-900/30',
+                isFuture && theme === 'light' ? 'opacity-90' : isFuture && 'opacity-70',
+                dayHasEvent && theme === 'light' 
+                  ? 'ring-2 ring-orange-600 hover:bg-orange-100 hover:bg-opacity-60' 
+                  : dayHasEvent && 'ring-2 ring-orange-500 hover:bg-orange-900/30',
                 !dayHasEvent && 'hover:ring-1 sm:hover:ring-2 hover:ring-blue-500'
               )}
               style={{ opacity }}
               title={`${format(day, 'MMM d')}: ${taskCount} task${taskCount !== 1 ? 's' : ''} completed${dayHasEvent ? ` | Events: ${eventTitle}` : ''}`}
               onClick={() => {
+                // Compare with the actual current date, not the adjusted one
+                const today = new Date();
+                // Check if the day is in the future (after today)
+                const isReallyFuture = isAfter(day, today);
+                // Check if the day is the same month but next year (future)
+                const isSameMonthNextYear = day.getMonth() === today.getMonth() && day.getFullYear() > today.getFullYear();
+                // Check if day is in a future month of current year
+                const isFutureMonth = day.getFullYear() === today.getFullYear() && day.getMonth() > today.getMonth();
+                
+                const shouldShowEventAdder = isReallyFuture || isSameMonthNextYear || isFutureMonth;
+                
                 if (dayHasEvent) {
                   const events = getEventsForDay(dateStr);
                   setSelectedDateEvents(events);
                   setSelectedFutureEvent(events[0]);
                   setIsAddingEvent(false);
-                } else if (isFuture) {
+                } else if (shouldShowEventAdder) {
                   handleAddEvent(day);
                 } else {
                   handleDayClick(day);
@@ -354,7 +423,12 @@ export const Heatmap: React.FC<HeatmapProps> = ({
                 }
               }}
             >
-              <div className="flex items-center justify-center h-full text-[8px] xs:text-[9px] sm:text-[10px] md:text-xs text-black dark:text-gray-300">
+              <div className={clsx(
+                "flex items-center justify-center h-full text-[8px] xs:text-[9px] sm:text-[10px] md:text-xs",
+                theme === 'light' 
+                  ? taskCount > 3 ? 'text-white' : 'text-gray-800' 
+                  : 'text-gray-300'
+              )}>
                 {format(day, 'd')}
               </div>
               {dayHasRemark && (
@@ -371,7 +445,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({
       {/* Modal for showing daily task information */}
       {selectedDay && (
         <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-gradient-to-br from-white to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 p-4 sm:p-5 md:p-6 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-700 max-w-md w-full max-h-[90vh] overflow-y-auto custom-scrollbar">
+          <div ref={modalRef} className="bg-gradient-to-br from-white to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 p-4 sm:p-5 md:p-6 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-700 max-w-md w-full max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div className="flex justify-between items-center mb-3 sm:mb-4">
               <h3 className="text-base sm:text-lg md:text-xl font-semibold text-zinc-800 dark:text-zinc-100">
                 {format(new Date(selectedDay.date), 'MMMM d, yyyy')}
@@ -516,7 +590,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({
       {/* Modal for future events */}
       {selectedFutureEvent && (
         <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-gradient-to-br from-white to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 p-4 sm:p-5 md:p-6 rounded-3xl shadow-2xl border border-orange-300 dark:border-orange-700 max-w-md w-full">
+          <div ref={eventModalRef} className="bg-gradient-to-br from-white to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 p-4 sm:p-5 md:p-6 rounded-3xl shadow-2xl border border-orange-300 dark:border-orange-700 max-w-md w-full">
             <div className="flex justify-between items-center mb-3 sm:mb-4">
               <h3 className="text-base sm:text-lg md:text-xl font-semibold text-zinc-800 dark:text-zinc-100">
                 {isAddingEvent ? 'Add Event' : 'Future Events'}: {format(new Date(selectedFutureEvent.date), 'MMMM d, yyyy')}

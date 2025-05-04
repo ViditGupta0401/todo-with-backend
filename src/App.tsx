@@ -97,6 +97,7 @@ function App() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [urlTitle, setUrlTitle] = useState<string | null>(null);
+  const { theme } = useTheme();
 
   // Function to update the URL title
   const updateUrlTitle = (title: string) => {
@@ -327,6 +328,11 @@ function App() {
       return true;
     });
   }, [tasks, filter]);
+
+  // Calculate remaining tasks for today
+  const remainingTasks = useMemo(() => {
+    return tasks.filter(task => !task.completed).length;
+  }, [tasks]);
 
   // Check and reset repeating tasks at 5 AM
   useEffect(() => {
@@ -581,9 +587,23 @@ function App() {
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-6 gap-4 lg:gap-6 min-h-[calc(100vh-2rem)]">
         <div className="col-span-1 lg:col-span-4 flex flex-col overflow-hidden">
           <div className="flex flex-col sm:flex-row items-center justify-between mb-4 sm:mb-6 lg:mb-8">
-            <div className="flex items-center gap-3 mb-3 sm:mb-0">
-              <img src={logo} className=' w-[10rem]' alt="" />
-              {/* <h1 className="text-2xl sm:text-3xl font-bold tracking-tight dark:text-slate-50 text-slate-900">Doing <span className='text-[#ff4101]'>.</span></h1> */}
+            <div className="flex flex-col items-start gap-2 mb-3 sm:mb-0">
+              <img 
+                src={logo} 
+                className={`-m-3 w-[10rem] ${theme === 'light' ? 'filter invert' : ''}`} 
+                alt="Doing Logo" 
+              />
+              <span className="font-medium text-sm sm:text-base">
+                {remainingTasks > 0 ? (
+                  <span>
+                    Quick heads-up! Just <span className="text-orange-600 dark:text-orange-400 font-semibold">{remainingTasks} {remainingTasks === 1 ? 'task' : 'tasks'}</span> to power through today ✨
+                  </span>
+                ) : (
+                  <span>
+                    Hurrah!🎉 You have <span className="text-blue-600 dark:text-blue-400 font-semibold">Finished</span> All Task 👍
+                  </span>
+                )}
+              </span>
             </div>
             <div className="flex flex-col text-center sm:text-right text-gray-900 dark:text-gray-400">
               <span className="font-semibold text-2xl sm:text-3xl md:text-4xl font-mono tracking-tight">
@@ -600,7 +620,7 @@ function App() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base rounded-full transition-all ${
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base rounded-2xl transition-all ${
                   filter === f ? 'bg-[#ff4101] text-white' : 'bg-gray-200 dark:bg-[#222126] text-gray-700 dark:text-white'
                 }`}
               >
