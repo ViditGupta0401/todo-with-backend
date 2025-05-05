@@ -54,7 +54,6 @@ function App() {
           const dailyDataArray = JSON.parse(savedDailyData) as DailyData[];
           const todayData = dailyDataArray.find(data => data.date === todayStr);
           completedTaskIds = todayData?.completedTaskIds || [];
-          console.log('Completed task IDs from daily data:', completedTaskIds);
         }
 
         // Convert timestamp strings back to numbers and ensure all required fields
@@ -66,12 +65,7 @@ function App() {
           priority: task.priority || 'medium',
           // Only mark as completed if it's in the completedTaskIds array
           completed: completedTaskIds.includes(task.id)
-        })).filter(task => {
-          // Keep repeating tasks and today's non-repeating tasks
-          if (task.isRepeating) return true;
-          const taskDate = format(new Date(task.timestamp), 'yyyy-MM-dd');
-          return taskDate === todayStr;
-        });
+        }));
       } catch (error) {
         console.error('Error loading tasks from localStorage:', error);
         return [];
@@ -113,54 +107,34 @@ function App() {
     }
     const todayStr = format(today, 'yyyy-MM-dd');
     console.log('Updating daily data for:', todayStr);
-    console.log('Current tasks:', currentTasks);
-
-    // Get completed tasks for today
-    const completedTasks = currentTasks.filter(task => {
-      // Check if the task is completed
-      if (!task.completed) return false;
-      
-      // For completed tasks, check if they were completed today
-      const taskDate = new Date(task.lastCompleted || task.timestamp);
-      const taskDay = new Date(taskDate);
-      if (taskDate.getHours() < 5) {
-        taskDay.setDate(taskDay.getDate() - 1);
-      }
-      const taskDateStr = format(taskDay, 'yyyy-MM-dd');
-      console.log(`Task ${task.id} completed date: ${taskDateStr}, today: ${todayStr}`);
-      return taskDateStr === todayStr;
-    });
-    console.log('Completed tasks for today:', completedTasks);
-
+    
     // Get repeating task IDs
     const repeatingTaskIds = currentTasks
       .filter(task => task.isRepeating)
       .map(task => task.id);
-    console.log('Repeating task IDs:', repeatingTaskIds);
-
-    // Get non-repeating task IDs for today only
+    
+    // Get non-repeating task IDs - include all non-repeating tasks
     const nonRepeatingTaskIds = currentTasks
-      .filter(task => {
-        // For non-repeating tasks, we need to check if they were created today
-        if (!task.isRepeating) {
-          const taskDate = format(new Date(task.timestamp), 'yyyy-MM-dd');
-          const isToday = taskDate === todayStr;
-          console.log(`Non-repeating task ${task.id}:`);
-          console.log(`  - Timestamp: ${task.timestamp}`);
-          console.log(`  - Date: ${taskDate}`);
-          console.log(`  - Today: ${todayStr}`);
-          console.log(`  - Is today: ${isToday}`);
-          return isToday;
-        }
-        return false;
-      })
+      .filter(task => !task.isRepeating)
       .map(task => task.id);
-    console.log('Non-repeating task IDs:', nonRepeatingTaskIds);
-
-    // Calculate total tasks for today
+    
+    // Get all completed tasks (both repeating and non-repeating)
+    const completedTaskIds = currentTasks
+      .filter(task => task.completed)
+      .map(task => task.id);
+    
+    // Calculate total tasks (both repeating and non-repeating)
     const totalTasksForToday = repeatingTaskIds.length + nonRepeatingTaskIds.length;
-    console.log('Total tasks for today:', totalTasksForToday);
-
+    
+    // Get texts of completed tasks for history
+    const completedTaskTexts = currentTasks
+      .filter(task => completedTaskIds.includes(task.id))
+      .map(task => ({
+        id: task.id,
+        text: task.text,
+        priority: task.priority
+      }));
+    
     // Update daily data
     setDailyData(prevData => {
       const existingDayIndex = prevData.findIndex(d => d.date === todayStr);
@@ -168,24 +142,24 @@ function App() {
         const newData = [...prevData];
         newData[existingDayIndex] = {
           ...newData[existingDayIndex],
-          completedTasks: completedTasks.length,
+          completedTasks: completedTaskIds.length,
           totalTasks: totalTasksForToday,
-          completedTaskIds: completedTasks.map(task => task.id),
+          completedTaskIds: completedTaskIds,
           repeatingTaskIds: repeatingTaskIds,
-          nonRepeatingTaskIds: nonRepeatingTaskIds
+          nonRepeatingTaskIds: nonRepeatingTaskIds,
+          completedTaskTexts: completedTaskTexts
         };
-        console.log('Updated existing day data:', newData[existingDayIndex]);
         return newData;
       } else {
         const newDayData = {
           date: todayStr,
-          completedTasks: completedTasks.length,
+          completedTasks: completedTaskIds.length,
           totalTasks: totalTasksForToday,
-          completedTaskIds: completedTasks.map(task => task.id),
+          completedTaskIds: completedTaskIds,
           repeatingTaskIds: repeatingTaskIds,
-          nonRepeatingTaskIds: nonRepeatingTaskIds
+          nonRepeatingTaskIds: nonRepeatingTaskIds,
+          completedTaskTexts: completedTaskTexts
         };
-        console.log('Created new day data:', newDayData);
         return [...prevData, newDayData];
       }
     });
@@ -211,50 +185,110 @@ function App() {
     }
   }, [dailyData]);
 
-  // Check for day change and reset tasks at midnight
+  // Check for day change and reset tasks at 5 AM (not midnight)
   useEffect(() => {
     const checkDayChange = () => {
       const now = new Date();
-      const currentDate = format(now, 'yyyy-MM-dd');
       
-      // Get the last saved date from localStorage
-      const lastSavedDate = localStorage.getItem('last-saved-date');
-      
-      // If it's a new day (or first time running)
-      if (lastSavedDate !== currentDate) {
-        console.log('New day detected, updating tasks and daily data');
+      // Only perform reset at 5 AM
+      if (now.getHours() === 5 && now.getMinutes() === 0) {
+        console.log('5 AM detected, resetting tasks for the new day');
+        
+        const currentDate = format(now, 'yyyy-MM-dd');
+        const previousDate = format(new Date(now.setDate(now.getDate() - 1)), 'yyyy-MM-dd');
         
         // Save the current date
         localStorage.setItem('last-saved-date', currentDate);
         
-        // Update daily data for the new day
-        updateDailyData(tasks);
+        // Get yesterday's data for updating completed tasks history
+        const yesterdayData = dailyData.find(d => d.date === previousDate);
         
-        // Reset completed status for repeating tasks
+        // Create history of completed non-repeating tasks before removing them
+        if (yesterdayData) {
+          const nonRepeatingTasks = tasks.filter(task => !task.isRepeating && yesterdayData.nonRepeatingTaskIds.includes(task.id));
+          
+          // Update yesterday's completedTaskTexts with non-repeating tasks info
+          if (nonRepeatingTasks.length > 0) {
+            setDailyData(prevData => {
+              const updatedData = [...prevData];
+              const yesterdayIndex = updatedData.findIndex(d => d.date === previousDate);
+              
+              if (yesterdayIndex >= 0) {
+                const completedTaskTexts = nonRepeatingTasks
+                  .filter(task => task.completed)
+                  .map(task => ({
+                    id: task.id,
+                    text: task.text,
+                    priority: task.priority
+                  }));
+                
+                updatedData[yesterdayIndex] = {
+                  ...updatedData[yesterdayIndex],
+                  completedTaskTexts: [
+                    ...(updatedData[yesterdayIndex].completedTaskTexts || []),
+                    ...completedTaskTexts
+                  ]
+                };
+              }
+              
+              return updatedData;
+            });
+          }
+        }
+        
+        // Reset completed status for repeating tasks and remove non-repeating tasks
         setTasks(prevTasks => {
-          return prevTasks.map(task => {
-            if (task.isRepeating) {
-              return {
-                ...task,
-                completed: false,
-                lastCompleted: task.completed ? task.timestamp : task.lastCompleted
-              };
-            }
-            return task;
-          });
+          // Keep only repeating tasks and reset their completed status
+          return prevTasks
+            .filter(task => task.isRepeating)
+            .map(task => ({
+              ...task,
+              completed: false,
+              lastCompleted: task.completed ? task.timestamp : task.lastCompleted
+            }));
+        });
+        
+        // Create a new day entry in daily data for today
+        setDailyData(prevData => {
+          const repeatingTaskIds = tasks
+            .filter(task => task.isRepeating)
+            .map(task => task.id);
+            
+          const existingDayIndex = prevData.findIndex(d => d.date === currentDate);
+          
+          if (existingDayIndex >= 0) {
+            // Update existing day
+            const newData = [...prevData];
+            newData[existingDayIndex] = {
+              ...newData[existingDayIndex],
+              completedTasks: 0,
+              completedTaskIds: [],
+              repeatingTaskIds: repeatingTaskIds,
+              nonRepeatingTaskIds: [],
+              totalTasks: repeatingTaskIds.length
+            };
+            return newData;
+          } else {
+            // Create new day
+            return [...prevData, {
+              date: currentDate,
+              completedTasks: 0,
+              totalTasks: repeatingTaskIds.length,
+              completedTaskIds: [],
+              repeatingTaskIds: repeatingTaskIds,
+              nonRepeatingTaskIds: []
+            }];
+          }
         });
       }
     };
-    
-    // Check immediately on component mount
-    checkDayChange();
-    
-    // Set up interval to check every minute
+
+    // Check every minute
     const interval = setInterval(checkDayChange, 60000);
-    
-    // Clean up interval on unmount
+    checkDayChange(); // Initial check
+
     return () => clearInterval(interval);
-  }, [tasks]);
+  }, [tasks, dailyData]);
 
   // Load data from localStorage on component mount
   useEffect(() => {
@@ -333,77 +367,6 @@ function App() {
   const remainingTasks = useMemo(() => {
     return tasks.filter(task => !task.completed).length;
   }, [tasks]);
-
-  // Check and reset repeating tasks at 5 AM
-  useEffect(() => {
-    const checkAndResetTasks = () => {
-      const now = new Date();
-      const fiveAM = new Date(now);
-      fiveAM.setHours(5, 0, 0, 0);
-      
-      // Check if it's 5 AM
-      if (now.getHours() === 5 && now.getMinutes() === 0) {
-        setTasks(prevTasks => {
-          // Get all repeating tasks
-          const repeatingTasks = prevTasks.filter(task => task.isRepeating);
-          // Get non-repeating tasks
-          const nonRepeatingTasks = prevTasks.filter(task => !task.isRepeating);
-          
-          // Create new instances of repeating tasks for today
-          const newRepeatingTasks = repeatingTasks.map(task => ({
-            ...task,
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            completed: false,
-            timestamp: Date.now(),
-            lastCompleted: task.completed ? Date.now() : task.lastCompleted
-          }));
-
-          // Return both repeating and non-repeating tasks
-          return [...newRepeatingTasks, ...nonRepeatingTasks];
-        });
-
-        // Update daily data for the new day
-        const today = new Date();
-        if (today.getHours() < 5) {
-          today.setDate(today.getDate() - 1);
-        }
-        const todayStr = format(today, 'yyyy-MM-dd');
-
-        setDailyData(prevData => {
-          const existingDayIndex = prevData.findIndex(d => d.date === todayStr);
-          if (existingDayIndex >= 0) {
-            const newData = [...prevData];
-            newData[existingDayIndex] = {
-              date: todayStr,
-              completedTasks: 0,
-              totalTasks: 0, // Will be updated with repeating tasks when they're added
-              completedTaskIds: [],
-              repeatingTaskIds: [], // Will be populated with repeating tasks when they're added
-              nonRepeatingTaskIds: [], // Will be empty for new day
-              completedTaskTexts: []
-            };
-            return newData;
-          } else {
-            return [...prevData, {
-              date: todayStr,
-              completedTasks: 0,
-              totalTasks: 0, // Will be updated with repeating tasks when they're added
-              completedTaskIds: [],
-              repeatingTaskIds: [], // Will be populated with repeating tasks when they're added
-              nonRepeatingTaskIds: [], // Will be empty for new day
-              completedTaskTexts: []
-            }];
-          }
-        });
-      }
-    };
-
-    // Check every minute
-    const interval = setInterval(checkAndResetTasks, 60000);
-    checkAndResetTasks(); // Initial check
-
-    return () => clearInterval(interval);
-  }, []);
 
   // Calculate real heatmap data for the selected month
   const heatmapData = useMemo(() => {
@@ -546,7 +509,6 @@ function App() {
           return {
             ...task,
             completed: !task.completed,
-            timestamp: now,
             lastCompleted: !task.completed ? now : task.lastCompleted
           };
         }
