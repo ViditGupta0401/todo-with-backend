@@ -1,13 +1,14 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { TaskInput } from './components/TaskInput';
 import { TaskList } from './components/TaskList';
 import { Analytics } from './components/Analytics';
 import { Heatmap } from './components/Heatmap';
 import { QuickLinks } from './components/QuickLinks';
+import { BMICalculator } from './components/BMICalculator';
 import { useTheme } from './context/ThemeContext';
 import type { Task, Filter } from './types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import logo from './doing logo.png'
+import logo from './doing logo.png';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
@@ -90,13 +91,8 @@ function App() {
   const [filter, setFilter] = useState<Filter>('all');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const [urlTitle, setUrlTitle] = useState<string | null>(null);
   const { theme } = useTheme();
-
-  // Function to update the URL title
-  const updateUrlTitle = (title: string) => {
-    setUrlTitle(title);
-  };
+  const [showBMI, setShowBMI] = useState<boolean>(false);
 
   // Function to update daily data
   const updateDailyData = (currentTasks: Task[]) => {
@@ -604,27 +600,55 @@ function App() {
         </div>
 
         <div className="col-span-1 lg:col-span-2 h-fit bg-white dark:bg-[#222126] p-3 sm:p-4 md:p-6 shadow-xl rounded-xl sm:rounded-2xl lg:rounded-3xl overflow-y-auto custom-scrollbar mt-4 lg:mt-0">
-          <h2 className="text-lg sm:text-xl font-normal mb-3 sm:mb-4 text-gray-800 dark:text-zinc-200">Analytics</h2>
-          <div className="mb-4">
-            <Analytics data={analyticsData} />
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h2 className="text-lg sm:text-xl font-normal text-gray-800 dark:text-zinc-200">
+              {showBMI ? 'BMI Calculator' : 'Analytics'}
+            </h2>
+            <button 
+              onClick={() => setShowBMI(!showBMI)} 
+              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              title={showBMI ? "Switch to Analytics" : "Switch to BMI Calculator"}
+            >
+              {showBMI ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#ff4101]">
+                  <path d="M12 20V10"></path>
+                  <path d="M18 20V4"></path>
+                  <path d="M6 20v-6"></path>
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="text-[#ff4101]">
+                  {/* Weight scale icon */}
+                  <path d="M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z"></path>
+                  <path d="M8 5V3h8v2"></path>
+                  <path d="M12 10v2"></path>
+                  <path d="M9 10l1.5 2h3L15 10"></path>
+                </svg>
+              )}
+            </button>
           </div>
-          <Heatmap 
-            data={heatmapData} 
-            dailyData={dailyData}
-            tasks={tasks}
-            selectedDate={selectedMonth}
-            onDateChange={setSelectedMonth}
-          />
+          
+          {showBMI ? (
+            <BMICalculator 
+              selectedMonth={selectedMonth}
+              onMonthChange={setSelectedMonth}
+            />
+          ) : (
+            <>
+              <div className="mb-4">
+                <Analytics data={analyticsData} />
+              </div>
+              <Heatmap 
+                data={heatmapData} 
+                dailyData={dailyData}
+                tasks={tasks}
+                selectedDate={selectedMonth}
+                onDateChange={setSelectedMonth}
+              />
+            </>
+          )}
         </div>
       </div>
 
-      {/* Display the URL title at the bottom */}
-      {urlTitle && (
-        <div className="fixed bottom-0 left-0 w-full bg-white/90 dark:bg-[#222126]/90 text-center py-1 sm:py-2 text-xs sm:text-sm">
-          <span className="text-gray-700 dark:text-gray-300">URL Title: {urlTitle}</span>
-        </div>
-      )}
-      
       {/* Footer with developer attribution */}
       <footer className="mt-8 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
         Made by <a 
