@@ -47,4 +47,90 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background-color: #ff6230;
   }
+  
+  /* Animation for counter digits */
+  .counter-wrapper {
+    @apply relative overflow-hidden inline-flex;
+  }
+  
+  .counter-digit {
+    @apply inline-block;
+  }
+  
+  .counter-column {
+    @apply relative overflow-hidden inline-flex flex-col;
+    transition: transform 0.3s ease;
+  }
+  
+  .counter-column-appear {
+    animation: appearAnimation 0.5s ease forwards;
+  }
+  
+  .counter-column-exit {
+    animation: exitAnimation 0.5s ease forwards;
+  }
+  
+  @keyframes appearAnimation {
+    0% {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes exitAnimation {
+    0% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+  }
+
+  /* Fixed animation styles for counter digits */
+  .digit-container {
+    display: inline-block;
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+  }
+  
+  .digit-separator {
+    display: inline-block;
+  }
+  
+  .digit-static {
+    display: inline-block;
+    text-align: center;
+  }
+  
+  .digit-exit {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    animation: digit-slide-up 300ms forwards;
+  }
+  
+  .digit-enter {
+    position: absolute;
+    left: 0;
+    top: 100%;
+    width: 100%;
+    animation: digit-slide-up 300ms forwards;
+  }
+  
+  @keyframes digit-slide-up {
+    0% {
+      transform: translateY(0);
+    }
+    100% {
+      transform: translateY(-100%);
+    }
+  }
 }

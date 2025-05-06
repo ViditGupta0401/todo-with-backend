@@ -9,6 +9,9 @@ import { useTheme } from './context/ThemeContext';
 import type { Task, Filter } from './types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import logo from './doing logo.png';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faDumbbell } from '@fortawesome/free-solid-svg-icons';
+import AnimatedCounter from './components/AnimatedCounter';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
@@ -234,14 +237,23 @@ function App() {
         
         // Reset completed status for repeating tasks and remove non-repeating tasks
         setTasks(prevTasks => {
+          const now = new Date();
+          const resetDate = format(now, 'yyyy-MM-dd');
+          console.log('Resetting tasks for date:', resetDate);
+          
           // Keep only repeating tasks and reset their completed status
-          return prevTasks
+          const repeatingTasks = prevTasks
             .filter(task => task.isRepeating)
             .map(task => ({
               ...task,
               completed: false,
               lastCompleted: task.completed ? task.timestamp : task.lastCompleted
             }));
+            
+          console.log('Kept repeating tasks:', repeatingTasks.length);
+          console.log('Removed non-repeating tasks:', prevTasks.length - repeatingTasks.length);
+          
+          return repeatingTasks;
         });
         
         // Create a new day entry in daily data for today
@@ -565,7 +577,12 @@ function App() {
             </div>
             <div className="flex flex-col text-center sm:text-right text-gray-900 dark:text-gray-400">
               <span className="font-semibold text-2xl sm:text-3xl md:text-4xl font-mono tracking-tight">
-                {format(currentTime, 'hh:mm:ss a')}
+                <AnimatedCounter 
+                  value={format(currentTime, 'hh:mm:ss a')}
+                  digitClassName="font-mono"
+                  separatorClassName="px-0.5"
+                  separators={[':', ' ', 'a', 'p', 'm']}
+                />
               </span>
               <span className='text-gray-900 dark:text-zinc-400/50 text-xs sm:text-sm'>{format(currentTime, 'EEEE, MMMM d, yyyy')}</span>
             </div>
@@ -616,13 +633,7 @@ function App() {
                   <path d="M6 20v-6"></path>
                 </svg>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="text-[#ff4101]">
-                  {/* Weight scale icon */}
-                  <path d="M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z"></path>
-                  <path d="M8 5V3h8v2"></path>
-                  <path d="M12 10v2"></path>
-                  <path d="M9 10l1.5 2h3L15 10"></path>
-                </svg>
+                <FontAwesomeIcon icon={faDumbbell} className="text-[#ff4101] h-5 w-5" />
               )}
             </button>
           </div>
