@@ -5,12 +5,13 @@ import { Analytics } from './components/Analytics';
 import { Heatmap } from './components/Heatmap';
 import { QuickLinks } from './components/QuickLinks';
 import { BMICalculator } from './components/BMICalculator';
+import { UserGuide } from './components/UserGuide'; // Import the UserGuide component
 import { useTheme } from './context/ThemeContext';
 import type { Task, Filter } from './types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import logo from './doing logo.png';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faDumbbell } from '@fortawesome/free-solid-svg-icons';
+import { faDumbbell, faQuestionCircle } from '@fortawesome/free-solid-svg-icons';
 import AnimatedCounter from './components/AnimatedCounter';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
@@ -96,6 +97,7 @@ function App() {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const { theme } = useTheme();
   const [showBMI, setShowBMI] = useState<boolean>(false);
+  const [showUserGuide, setShowUserGuide] = useState<boolean>(false); // Add state for user guide
 
   // Function to update daily data
   const updateDailyData = (currentTasks: Task[]) => {
@@ -558,11 +560,20 @@ function App() {
         <div className="col-span-1 lg:col-span-4 flex flex-col overflow-hidden">
           <div className="flex flex-col sm:flex-row items-center justify-between mb-4 sm:mb-6 lg:mb-8">
             <div className="flex flex-col items-start gap-2 mb-3 sm:mb-0">
-              <img 
-                src={logo} 
-                className={`-m-3 w-[10rem] ${theme === 'light' ? 'filter invert' : ''}`} 
-                alt="Doing Logo" 
-              />
+              <div className="flex justify-center items-center">
+                <img 
+                  src={logo} 
+                  className={`-m-3 w-[10rem] ${theme === 'light' ? 'filter invert' : ''}`} 
+                  alt="Doing Logo" 
+                />
+                <button
+                  onClick={() => setShowUserGuide(true)}
+                  className="ml-2 mt-4 p-1.5 rounded-full  transition-colors"
+                  title="User Guide"
+                >
+                  <FontAwesomeIcon icon={faQuestionCircle} className="h-5 w-5 text-zinc-500" />
+                </button>
+              </div>
               <span className="font-medium text-sm sm:text-base">
                 {remainingTasks > 0 ? (
                   <span>
@@ -659,6 +670,11 @@ function App() {
           )}
         </div>
       </div>
+
+      {/* User Guide Modal */}
+      {showUserGuide && (
+        <UserGuide onClose={() => setShowUserGuide(false)} />
+      )}
 
       {/* Footer with developer attribution */}
       <footer className="mt-8 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
