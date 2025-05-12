@@ -60,9 +60,17 @@ function App() {
           const todayData = dailyDataArray.find(data => data.date === todayStr);
           completedTaskIds = todayData?.completedTaskIds || [];
         }
+        
+        // Check if we should filter out non-repeating tasks (if it's after 5 AM)
+        const shouldFilterNonRepeatingTasks = now.getHours() >= 5;
+        
+        // Apply the filter if needed
+        const filteredParsedTasks = shouldFilterNonRepeatingTasks 
+          ? parsedTasks.filter(task => task.isRepeating)
+          : parsedTasks;
 
         // Convert timestamp strings back to numbers and ensure all required fields
-        return parsedTasks.map(task => ({
+        return filteredParsedTasks.map(task => ({
           ...task,
           timestamp: Number(task.timestamp),
           lastCompleted: task.lastCompleted ? Number(task.lastCompleted) : undefined,
@@ -299,7 +307,6 @@ function App() {
 
     return () => clearInterval(interval);
   }, [tasks, dailyData]);
-
   // Load data from localStorage on component mount
   useEffect(() => {
     const loadData = () => {
@@ -328,7 +335,19 @@ function App() {
 
         if (savedTasks) {
           const parsedTasks = JSON.parse(savedTasks) as StoredTask[];
-          const tasks = parsedTasks.map(task => ({
+          
+          // Apply 5 AM reset logic at app load time - filter out non-repeating tasks if it's after 5 AM
+          const now = new Date();
+          const shouldFilterNonRepeatingTasks = now.getHours() >= 5;
+          
+          // If it's after 5 AM, only include repeating tasks, otherwise include all tasks
+          const filteredParsedTasks = shouldFilterNonRepeatingTasks 
+            ? parsedTasks.filter(task => task.isRepeating)
+            : parsedTasks;
+          
+          console.log(`Loading tasks after applying ${shouldFilterNonRepeatingTasks ? '5 AM reset logic - keeping only repeating tasks' : 'no filtering - before 5 AM'}`);
+          
+          const tasks = filteredParsedTasks.map(task => ({
             ...task,
             timestamp: Number(task.timestamp),
             lastCompleted: task.lastCompleted ? Number(task.lastCompleted) : undefined,
