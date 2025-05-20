@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import clsx from 'clsx';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isAfter, isSameDay, subMonths, addMonths } from 'date-fns';
-import { Sun, Moon } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import type { Task } from '../types';
 
@@ -42,11 +41,10 @@ export const Heatmap: React.FC<HeatmapProps> = ({
   futureEvents = [],
   onFutureEventAdd,
   onFutureEventRemove
-}) => {
-  const [selectedDay, setSelectedDay] = useState<DailyData | null>(null);
+}) => {  const [selectedDay, setSelectedDay] = useState<DailyData | null>(null);
   const [remarkInput, setRemarkInput] = useState('');
   const [isEditingRemark, setIsEditingRemark] = useState(false);
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   
   // State for future events management
   const [selectedFutureEvent, setSelectedFutureEvent] = useState<FutureEvent | null>(null);
@@ -315,11 +313,11 @@ export const Heatmap: React.FC<HeatmapProps> = ({
 
   return (
     <div className="mt-3 flex flex-col items-center">
-      <div className="flex items-center justify-between w-full mb-2 sm:mb-4">
+      <div className="flex items-center justify-center w-full mb-2 sm:mb-4">
         <div className="flex items-center gap-1 sm:gap-2 md:gap-4">
           <button
             onClick={handlePrevMonth}
-            className="p-1 sm:p-1.5 md:p-2 hover:bg-gray-700 dark:hover:bg-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+            className="p-1 sm:p-1.5 md:p-2 dark:hover:bg-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
             title="Previous month"
           >
             <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -331,7 +329,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({
           </span>
           <button
             onClick={handleNextMonth}
-            className="p-1 sm:p-1.5 md:p-2 hover:bg-gray-700 dark:hover:bg-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+            className="p-1 sm:p-1.5 md:p-2 dark:hover:bg-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
             title="Next month"
           >
             <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -339,107 +337,132 @@ export const Heatmap: React.FC<HeatmapProps> = ({
             </svg>
           </button>
         </div>
-        
-        {/* Theme toggle button */}
-        <button
-          onClick={toggleTheme}
-          className="p-1.5 sm:p-2  dark:bg-zinc-800 bg-zinc-100 rounded-full flex items-center justify-center transition-colors  dark:hover:bg-zinc-700 hover:bg-zinc-300"
-          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {theme === 'dark' ? 
-            <Sun size={16} className="text-yellow-400" /> : 
-            <Moon size={16} className="text-blue-600" />
-          }
-        </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-0.5 xs:gap-1 sm:gap-1.5 md:gap-2 w-full overflow-x-auto p-1 xs:p-2 sm:p-3 md:p-4 lg:p-6 rounded-xl sm:rounded-2xl bg-gray-200 dark:bg-zinc-900 shadow-2xl">
-        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
-          <div key={day + index} className="text-center text-[8px]  xs:text-[10px] sm:text-xs text-orange-700/50 py-0.5 sm:py-1">
-            {day}
-          </div>
-        ))}
-        
-        {Array.from({ length: monthStart.getDay() }).map((_, i) => (
-          <div key={`empty-${i}`} className="aspect-square" />
-        ))}
-        
-        {days.map((day) => {
-          const dateStr = format(day, 'yyyy-MM-dd');
-          const taskCount = data[dateStr] || 0;
-          const opacity = taskCount > 0 ? (taskCount / maxTasks) * 0.8 + 0.2 : 0.2;
-          const isToday = isSameDay(day, adjustedToday);
-          const isFuture = isAfter(day, adjustedToday);
-          const dayHasRemark = hasRemark(dateStr);
-          const dayHasEvent = isFutureEvent(dateStr);
-          const eventTitle = getFutureEventTitle(dateStr);
-          
-          return (
+      {/* Responsive calendar grid container */}
+      <div
+        className="w-full bg-zinc-900 pb-4 rounded-2xl max-w-[420px] min-w-[252px] overflow-x-auto px-1 xs:px-2 sm:px-3 md:px-4 lg:px-6 mb-3"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        <div
+          className="grid w-full"
+          style={{
+            gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+            gap: '0.25rem',
+            gridAutoRows: '1fr',
+          }}
+        >
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
             <div
-              key={dateStr}
-              className={clsx(
-                'aspect-square relative w-5 h-5 xs:w-6 xs:h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 rounded md:rounded-xl transition-all cursor-pointer',
-                getColor(taskCount),
-                isToday && 'ring-1 sm:ring-2 ring-blue-500',
-                isFuture && theme === 'light' ? 'opacity-90' : isFuture && 'opacity-70',
-                dayHasEvent && theme === 'light' 
-                  ? 'ring-2 ring-orange-600 hover:bg-orange-100 hover:bg-opacity-60' 
-                  : dayHasEvent && 'ring-2 ring-orange-500 hover:bg-orange-900/30',
-                !dayHasEvent && 'hover:ring-1 sm:hover:ring-2 hover:ring-blue-500'
-              )}
-              style={{ opacity }}
-              title={`${format(day, 'MMM d')}: ${taskCount} task${taskCount !== 1 ? 's' : ''} completed${dayHasEvent ? ` | Events: ${eventTitle}` : ''}`}
-              onClick={() => {
-                // Compare with the actual current date, not the adjusted one
-                const today = new Date();
-                // Check if the day is in the future (after today)
-                const isReallyFuture = isAfter(day, today);
-                // Check if the day is the same month but next year (future)
-                const isSameMonthNextYear = day.getMonth() === today.getMonth() && day.getFullYear() > today.getFullYear();
-                // Check if day is in a future month of current year
-                const isFutureMonth = day.getFullYear() === today.getFullYear() && day.getMonth() > today.getMonth();
-                
-                const shouldShowEventAdder = isReallyFuture || isSameMonthNextYear || isFutureMonth;
-                
-                if (dayHasEvent) {
-                  const events = getEventsForDay(dateStr);
-                  setSelectedDateEvents(events);
-                  setSelectedFutureEvent(events[0]);
-                  setIsAddingEvent(false);
-                } else if (shouldShowEventAdder) {
-                  handleAddEvent(day);
-                } else {
-                  handleDayClick(day);
-                }
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                if (dayHasEvent) {
-                  const events = getEventsForDay(dateStr);
-                  setSelectedDateEvents(events);
-                  setSelectedFutureEvent(events[0]);
-                } else if (isFuture) {
-                  handleAddEvent(day);
-                }
-              }}
+              key={day + index}
+              className="text-center text-[10px] xs:text-xs sm:text-sm text-orange-700/50 py-1 sm:py-1.5 md:py-2 font-semibold select-none"
+              style={{ minWidth: 0 }}
             >
-              <div className={clsx(
-                "flex items-center justify-center h-full text-[8px] xs:text-[9px] sm:text-[10px] md:text-xs",
-                theme === 'light' 
-                  ? taskCount > 3 ? 'text-white' : 'text-gray-800' 
-                  : 'text-gray-300'
-              )}>
-                {format(day, 'd')}
-              </div>
-              {dayHasRemark && (
-                <div className="absolute top-0 right-0 w-1 h-1 sm:w-1.5 sm:h-1.5 md:w-2 md:h-2 bg-yellow-400 rounded-full"></div>
-              )}
-              {dayHasEvent && (
-                <div className="absolute bottom-0 right-0 w-1 h-1 sm:w-1.5 sm:h-1.5 md:w-2 md:h-2 bg-orange-500 rounded-full"></div>
-              )}
+              {day}
             </div>
-          );
-        })}
+          ))}
+        </div>
+        <div
+          className="grid w-full"
+          style={{
+            gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+            gap: '0.25rem',
+            gridAutoRows: '1fr',
+          }}
+        >
+          {Array.from({ length: monthStart.getDay() }).map((_, i) => (
+            <div key={`empty-${i}`} style={{ aspectRatio: '1 / 1', minWidth: 0, width: '100%' }} />
+          ))}
+          {days.map((day) => {
+            const dateStr = format(day, 'yyyy-MM-dd');
+            const taskCount = data[dateStr] || 0;
+            const opacity = taskCount > 0 ? (taskCount / maxTasks) * 0.8 + 0.2 : 0.2;
+            const isToday = isSameDay(day, adjustedToday);
+            const isFuture = isAfter(day, adjustedToday);
+            const dayHasRemark = hasRemark(dateStr);
+            const dayHasEvent = isFutureEvent(dateStr);
+            const eventTitle = getFutureEventTitle(dateStr);
+
+            return (
+              <div
+                key={dateStr}
+                className={clsx(
+                  'relative rounded-lg font-thin  transition-all cursor-pointer flex items-center justify-center',
+                  'hover:ring-1 sm:hover:ring-2 hover:ring-blue-500',
+                  getColor(taskCount),
+                  isToday && 'ring-1 sm:ring-2 ring-blue-500',
+                  isFuture && theme === 'light' ? 'opacity-90' : isFuture && 'opacity-70',
+                  dayHasEvent && theme === 'light'
+                    ? 'ring-2 ring-orange-600 hover:bg-orange-100 hover:bg-opacity-60'
+                    : dayHasEvent && 'ring-2 ring-orange-500 hover:bg-orange-900/30',
+                )}
+                style={{
+                  opacity,
+                  aspectRatio: '1 / 1',
+                  minWidth: 0,
+                  width: '100%',
+                  maxWidth: '100%',
+                  height: 'auto',
+                  fontSize: 'clamp(10px, 2vw, 16px)',
+                  padding: '0.2rem',
+                }}
+                title={`${format(day, 'MMM d')}: ${taskCount} task${taskCount !== 1 ? 's' : ''} completed${dayHasEvent ? ` | Events: ${eventTitle}` : ''}`}
+                onClick={() => {
+                  // Compare with the actual current date, not the adjusted one
+                  const today = new Date();
+                  // Check if the day is in the future (after today)
+                  const isReallyFuture = isAfter(day, today);
+                  // Check if the day is the same month but next year (future)
+                  const isSameMonthNextYear = day.getMonth() === today.getMonth() && day.getFullYear() > today.getFullYear();
+                  // Check if day is in a future month of current year
+                  const isFutureMonth = day.getFullYear() === today.getFullYear() && day.getMonth() > today.getMonth();
+                  
+                  const shouldShowEventAdder = isReallyFuture || isSameMonthNextYear || isFutureMonth;
+                  
+                  if (dayHasEvent) {
+                    const events = getEventsForDay(dateStr);
+                    setSelectedDateEvents(events);
+                    setSelectedFutureEvent(events[0]);
+                    setIsAddingEvent(false);
+                  } else if (shouldShowEventAdder) {
+                    handleAddEvent(day);
+                  } else {
+                    handleDayClick(day);
+                  }
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (dayHasEvent) {
+                    const events = getEventsForDay(dateStr);
+                    setSelectedDateEvents(events);
+                    setSelectedFutureEvent(events[0]);
+                  } else if (isFuture) {
+                    handleAddEvent(day);
+                  }
+                }}
+              >
+                <div
+                  className={clsx(
+                    'flex items-center justify-center h-full w-full',
+                    theme === 'light'
+                      ? taskCount > 3 ? 'text-white' : 'text-gray-800'
+                      : 'text-gray-300',
+                    'font-light',
+                  )}
+                  style={{ fontSize: 'clamp(8px, 1.2vw, 12px)' }}
+                >
+                  {format(day, 'd')}
+                </div>
+                {dayHasRemark && (
+                  <div className="absolute top-0 right-0 translate-x-1/3 -translate-y-1/3 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-yellow-400 rounded-full shadow" />
+                )}
+                {dayHasEvent && (
+                  <div className="absolute bottom-0 right-0 translate-x-1/3 translate-y-1/3 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-orange-500 rounded-full shadow" />
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Modal for showing daily task information */}

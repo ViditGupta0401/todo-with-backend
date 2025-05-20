@@ -1,5 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
-import { TaskInput } from './components/TaskInput';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { TaskList } from './components/TaskList';
 import { Analytics } from './components/Analytics';
 import { Heatmap } from './components/Heatmap';
@@ -7,25 +6,22 @@ import { QuickLinks } from './components/QuickLinks';
 import { BMICalculator } from './components/BMICalculator';
 import { UserGuide } from './components/UserGuide'; // Import the UserGuide component
 import { useTheme } from './context/ThemeContext';
+import Dock from './components/Dock'; // Import the Dock component
+import WidgetManager, { Widget } from './components/WidgetManager'; // Import our new WidgetManager
+import WidgetSelector, { WidgetTemplate } from './components/WidgetSelector'; // Import new WidgetSelector
+import { WidgetProvider, useWidgetContext } from './context/WidgetContext';
 import type { Task, Filter } from './types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import logo from './doing logo.png';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faDumbbell, faQuestionCircle } from '@fortawesome/free-solid-svg-icons';
-import AnimatedCounter from './components/AnimatedCounter';
+import { faDumbbell } from '@fortawesome/free-solid-svg-icons';
+import { motion } from 'framer-motion';
+import ClockWidget from './components/ClockWidget';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
 
-interface StoredTask {
-  id: string;
-  text: string;
-  priority: 'high' | 'medium' | 'low';
-  completed: boolean;
-  timestamp: string;
-  isRepeating: boolean;
-  lastCompleted?: string;
-}
+// Using Task type directly instead of a separate StoredTask interface
+// No need for a separate storage format type
 
 interface DailyData {
   date: string;
@@ -39,54 +35,10 @@ interface DailyData {
 }
 
 function App() {
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    // Load tasks from localStorage on initial render
-    const savedTasks = localStorage.getItem(STORAGE_KEY);
-    if (savedTasks) {
-      try {
-        const parsedTasks = JSON.parse(savedTasks) as StoredTask[];
-        const now = new Date();
-        const today = new Date(now);
-        if (now.getHours() < 5) {
-          today.setDate(today.getDate() - 1);
-        }
-        const todayStr = format(today, 'yyyy-MM-dd');
-
-        // Get the daily data to check completed tasks
-        const savedDailyData = localStorage.getItem(DAILY_DATA_KEY);
-        let completedTaskIds: string[] = [];
-        if (savedDailyData) {
-          const dailyDataArray = JSON.parse(savedDailyData) as DailyData[];
-          const todayData = dailyDataArray.find(data => data.date === todayStr);
-          completedTaskIds = todayData?.completedTaskIds || [];
-        }
-        
-        // Check if we should filter out non-repeating tasks (if it's after 5 AM)
-        const shouldFilterNonRepeatingTasks = now.getHours() >= 5;
-        
-        // Apply the filter if needed
-        const filteredParsedTasks = shouldFilterNonRepeatingTasks 
-          ? parsedTasks.filter(task => task.isRepeating)
-          : parsedTasks;
-
-        // Convert timestamp strings back to numbers and ensure all required fields
-        return filteredParsedTasks.map(task => ({
-          ...task,
-          timestamp: Number(task.timestamp),
-          lastCompleted: task.lastCompleted ? Number(task.lastCompleted) : undefined,
-          isRepeating: task.isRepeating || false,
-          priority: task.priority || 'medium',
-          // Only mark as completed if it's in the completedTaskIds array
-          completed: completedTaskIds.includes(task.id)
-        }));
-      } catch (error) {
-        console.error('Error loading tasks from localStorage:', error);
-        return [];
-      }
-    }
-    return [];
-  });
-
+  const [tasks, setTasks] = useState<Task[]>([]);
+  // Add this ref to track initial mount and prevent task clearing on refresh
+  const isInitialRender = useRef(true);
+  
   const [dailyData, setDailyData] = useState<DailyData[]>(() => {
     const savedData = localStorage.getItem(DAILY_DATA_KEY);
     if (savedData) {
@@ -99,13 +51,24 @@ function App() {
     }
     return [];
   });
-
   const [filter, setFilter] = useState<Filter>('all');
-  const [currentTime, setCurrentTime] = useState(new Date());
+  // We only need selectedMonth for date-based features
   const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const { theme } = useTheme();
-  const [showBMI, setShowBMI] = useState<boolean>(false);
+  const { theme } = useTheme();  const [showBMI, setShowBMI] = useState<boolean>(false);
   const [showUserGuide, setShowUserGuide] = useState<boolean>(false); // Add state for user guide
+  const [showFilterDropdown, setShowFilterDropdown] = useState<boolean>(false); // Add state for filter dropdown
+  const [showAddQuickLinkModal, setShowAddQuickLinkModal] = useState<boolean>(false); // Add state for add quick link modal
+  const [showDailyInfoModal, setShowDailyInfoModal] = useState<boolean>(false); // Add state for daily info modal
+
+  // Use context for widget state
+  const {
+    activeWidgets,
+    setActiveWidgets
+    // Removed unused: isEditingLayout, setIsEditingLayout, showWidgetSelector, setShowWidgetSelector
+  } = useWidgetContext();
+  
+  const [quickLinksKey, setQuickLinksKey] = useState(0); // To force re-render
+  const [newLink, setNewLink] = useState({ title: '', url: '' });
 
   // Function to update daily data
   const updateDailyData = (currentTasks: Task[]) => {
@@ -173,13 +136,49 @@ function App() {
       }
     });
   };
-
+  // Load tasks from localStorage on mount (single source of truth)
+  useEffect(() => {
+    try {
+      const savedTasks = localStorage.getItem(STORAGE_KEY);
+      console.log('Loading tasks from localStorage:', savedTasks);
+      
+      if (savedTasks) {
+        // Parse and convert fields to match Task type
+        const parsedTasks = JSON.parse(savedTasks).map((task: {
+          id: string;
+          text: string;
+          priority?: 'high' | 'medium' | 'low';
+          completed: boolean;
+          timestamp: number | string;
+          isRepeating?: boolean;
+          lastCompleted?: number | string;
+        }) => ({
+          ...task,
+          timestamp: typeof task.timestamp === 'string' ? Number(task.timestamp) : task.timestamp,
+          lastCompleted: task.lastCompleted ? 
+            (typeof task.lastCompleted === 'string' ? Number(task.lastCompleted) : task.lastCompleted) : 
+            undefined,
+          isRepeating: !!task.isRepeating,
+          priority: task.priority || 'medium',
+        }));
+        
+        console.log('Parsed tasks:', parsedTasks);
+        if (parsedTasks.length > 0) {
+          setTasks(parsedTasks);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading tasks from localStorage:', error);
+    }
+  }, []);
   // Save tasks to localStorage whenever they change
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-      // Update daily data whenever tasks change
-      updateDailyData(tasks);
+      // Only save if tasks is not empty and fully initialized
+      if (tasks.length > 0 || localStorage.getItem(STORAGE_KEY) === null) {
+        console.log('Saving tasks to localStorage:', tasks);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      }
     } catch (error) {
       console.error('Error saving tasks to localStorage:', error);
     }
@@ -192,10 +191,14 @@ function App() {
     } catch (error) {
       console.error('Error saving daily data to localStorage:', error);
     }
-  }, [dailyData]);
-
-  // Check for day change and reset tasks at 5 AM (not midnight)
+  }, [dailyData]);  // Check for day change and reset tasks at 5 AM (not midnight)
   useEffect(() => {
+    // Don't run task reset logic on first render to prevent clearing tasks on refresh
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      return;
+    }
+    
     const checkDayChange = () => {
       const now = new Date();
       
@@ -301,87 +304,14 @@ function App() {
       }
     };
 
-    // Check every minute
+    // Only set up the interval for checking 5AM reset if we have loaded tasks
+    // Don't call the function immediately to prevent reset on load
     const interval = setInterval(checkDayChange, 60000);
-    checkDayChange(); // Initial check
 
     return () => clearInterval(interval);
   }, [tasks, dailyData]);
-  // Load data from localStorage on component mount
-  useEffect(() => {
-    const loadData = () => {
-      try {
-        const savedTasks = localStorage.getItem(STORAGE_KEY);
-        const savedDailyData = localStorage.getItem(DAILY_DATA_KEY);
-
-        // First load daily data to get completed tasks
-        let completedTaskIds: string[] = [];
-        if (savedDailyData) {
-          const parsedDailyData = JSON.parse(savedDailyData);
-          setDailyData(parsedDailyData);
-          console.log('Loaded daily data from localStorage:', parsedDailyData);
-
-          // Get today's completed tasks
-          const now = new Date();
-          const today = new Date(now);
-          if (now.getHours() < 5) {
-            today.setDate(today.getDate() - 1);
-          }
-          const todayStr = format(today, 'yyyy-MM-dd');
-          const todayData = parsedDailyData.find((d: DailyData) => d.date === todayStr);
-          completedTaskIds = todayData?.completedTaskIds || [];
-          console.log('Today\'s completed task IDs:', completedTaskIds);
-        }
-
-        if (savedTasks) {
-          const parsedTasks = JSON.parse(savedTasks) as StoredTask[];
-          
-          // Apply 5 AM reset logic at app load time - filter out non-repeating tasks if it's after 5 AM
-          const now = new Date();
-          const shouldFilterNonRepeatingTasks = now.getHours() >= 5;
-          
-          // If it's after 5 AM, only include repeating tasks, otherwise include all tasks
-          const filteredParsedTasks = shouldFilterNonRepeatingTasks 
-            ? parsedTasks.filter(task => task.isRepeating)
-            : parsedTasks;
-          
-          console.log(`Loading tasks after applying ${shouldFilterNonRepeatingTasks ? '5 AM reset logic - keeping only repeating tasks' : 'no filtering - before 5 AM'}`);
-          
-          const tasks = filteredParsedTasks.map(task => ({
-            ...task,
-            timestamp: Number(task.timestamp),
-            lastCompleted: task.lastCompleted ? Number(task.lastCompleted) : undefined,
-            isRepeating: task.isRepeating || false,
-            priority: task.priority || 'medium',
-            // Only mark as completed if it's in today's completedTaskIds
-            completed: completedTaskIds.includes(task.id)
-          }));
-          setTasks(tasks);
-          console.log('Loaded tasks from localStorage:', tasks);
-        }
-        
-        // Initialize last-saved-date if it doesn't exist
-        const currentDate = format(new Date(), 'yyyy-MM-dd');
-        if (!localStorage.getItem('last-saved-date')) {
-          localStorage.setItem('last-saved-date', currentDate);
-          console.log('Initialized last-saved-date:', currentDate);
-        }
-      } catch (error) {
-        console.error('Error loading data from localStorage:', error);
-      }
-    };
-
-    loadData();
-  }, []);
-
-  // Update time every second
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
+  // No need to update time every second since we're not displaying a clock
+  // Removed the unused setCurrentTime interval
 
   // Filter tasks to show all tasks
   const filteredTasks = useMemo(() => {
@@ -389,13 +319,7 @@ function App() {
       if (filter === 'active') return !task.completed;
       if (filter === 'completed') return task.completed;
       return true;
-    });
-  }, [tasks, filter]);
-
-  // Calculate remaining tasks for today
-  const remainingTasks = useMemo(() => {
-    return tasks.filter(task => !task.completed).length;
-  }, [tasks]);
+    });  }, [tasks, filter]);
 
   // Calculate real heatmap data for the selected month
   const heatmapData = useMemo(() => {
@@ -567,86 +491,55 @@ function App() {
       task.id === id ? { ...task, text: text.trim() } : task
     ));
   };
-
+  // Helper: reorder tasks
   const reorderTasks = (newTasks: Task[]) => {
-    // Update the order of all tasks, not just filtered ones
     setTasks(newTasks);
   };
-
-  return (
-    <div className="min-h-screen dark:bg-[#18181c] bg-gray-100 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-6 gap-4 lg:gap-6 min-h-[calc(100vh-2rem)]">
-        <div className="col-span-1 lg:col-span-4 flex flex-col overflow-hidden">
-          <div className="flex flex-col sm:flex-row items-center justify-between mb-4 sm:mb-6 lg:mb-8">
-            <div className="flex flex-col items-start gap-2 mb-3 sm:mb-0">
-              <div className="flex justify-center items-center">
-                <img 
-                  src={logo} 
-                  className={`-m-3 w-[10rem] ${theme === 'light' ? 'filter invert' : ''}`} 
-                  alt="Doing Logo" 
-                />
-                <button
-                  onClick={() => setShowUserGuide(true)}
-                  className="ml-2 mt-4 p-1.5 rounded-full  transition-colors"
-                  title="User Guide"
-                >
-                  <FontAwesomeIcon icon={faQuestionCircle} className="h-5 w-5 text-zinc-500" />
-                </button>
-              </div>
-              <span className="font-medium text-sm sm:text-base">
-                {remainingTasks > 0 ? (
-                  <span>
-                    Quick heads-up! Just <span className="text-orange-600 dark:text-orange-400 font-semibold">{remainingTasks} {remainingTasks === 1 ? 'task' : 'tasks'}</span> to power through today ✨
-                  </span>
-                ) : (
-                  <span>
-                    Hurrah!🎉 You have <span className="text-blue-600 dark:text-blue-400 font-semibold">Finished</span> All Task 👍
-                  </span>
-                )}
-              </span>
-            </div>
-            <div className="flex flex-col text-center sm:text-right text-gray-900 dark:text-gray-400">
-              <span className="font-semibold text-2xl sm:text-3xl md:text-4xl font-mono tracking-tight">
-                <AnimatedCounter 
-                  value={format(currentTime, 'hh:mm:ss a')}
-                  digitClassName="font-mono"
-                  separatorClassName="px-0.5"
-                  separators={[':', ' ', 'a', 'p', 'm']}
-                />
-              </span>
-              <span className='text-gray-900 dark:text-zinc-400/50 text-xs sm:text-sm'>{format(currentTime, 'EEEE, MMMM d, yyyy')}</span>
-            </div>
-          </div>
-
-          <QuickLinks />
-          
-          <div className="flex flex-wrap gap-2 sm:gap-4 mb-4 sm:mb-6">
-            {(['all', 'active', 'completed'] as Filter[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base rounded-2xl transition-all ${
-                  filter === f ? 'bg-[#ff4101] text-white' : 'bg-gray-200 dark:bg-[#222126] text-gray-700 dark:text-white'
-                }`}
-              >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
-          </div>
-
-          <TaskInput onAddTask={addTask} />
-          <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar">
+  
+  // Handle layout related functions here if needed
+  // Define all available widgets that can be displayed
+  const widgetDefinitions = {
+    quickLinks: {
+      i: 'quickLinks',
+      x: 0, // Column 0
+      y: 0, // Row 0
+      w: 1, // Width: 1 column
+      content: <QuickLinks key={quickLinksKey} onAddLinkClick={() => setShowAddQuickLinkModal(true)} />
+    },
+    todoList: {
+      i: 'todoList',
+      x: 1, // Column 1
+      y: 0, // Row 0
+      w: 2, // Width: 2 columns
+      content: (
+        <div className="w-full flex flex-col">
           <TaskList
             tasks={filteredTasks}
             onToggleTask={toggleTask}
             onDeleteTask={deleteTask}
             onUpdateTask={updateTask}
             onReorderTasks={reorderTasks}
+            itemTextClassName="text-[1rem] sm:text-[1.125rem]"
+            secondaryTextClassName="text-[0.875rem] sm:text-[1rem]"
+            captionClassName="text-[0.75rem] sm:text-[0.875rem]"
+            filter={filter}
+            setFilter={(f: string) => setFilter(f as Filter)}
+            showFilterDropdown={showFilterDropdown}
+            setShowFilterDropdown={setShowFilterDropdown}
+            theme={theme}
+            isEmpty={filteredTasks.length === 0}
+            onAddClick={addTask} // Pass addTask directly
           />
-          </div>
         </div>
-
-        <div className="col-span-1 lg:col-span-2 h-fit bg-white dark:bg-[#222126] p-3 sm:p-4 md:p-6 shadow-xl rounded-xl sm:rounded-2xl lg:rounded-3xl overflow-y-auto custom-scrollbar mt-4 lg:mt-0">
+      )
+    },
+    analytics: {
+      i: 'analytics',
+      x: 3, // Column 3
+      y: 0, // Row 0
+      w: 1, // Width: 1 column
+      content: (
+        <div className="bg-white dark:bg-[#222126] p-3 sm:p-4 md:p-6 shadow-xl rounded-xl sm:rounded-2xl lg:rounded-3xl overflow-y-auto custom-scrollbar">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h2 className="text-lg sm:text-xl font-normal text-gray-800 dark:text-zinc-200">
               {showBMI ? 'BMI Calculator' : 'Analytics'}
@@ -661,13 +554,11 @@ function App() {
                   <path d="M12 20V10"></path>
                   <path d="M18 20V4"></path>
                   <path d="M6 20v-6"></path>
-                </svg>
-              ) : (
-                <FontAwesomeIcon icon={faDumbbell} className="text-[#ff4101] h-5 w-5" />
-              )}
+                </svg>                  ) : (
+                    <FontAwesomeIcon icon={faDumbbell} className="text-[#ff4101] h-5 w-5" />
+                  )}
             </button>
           </div>
-          
           {showBMI ? (
             <BMICalculator 
               selectedMonth={selectedMonth}
@@ -688,15 +579,193 @@ function App() {
             </>
           )}
         </div>
+      )
+    },
+    clock: {
+      i: 'clock',
+      x: 0,
+      y: 1,
+      w: 1, // Set to 1 column width
+      content: <ClockWidget />
+    }
+  };
+
+  // Filter active widgets based on activeWidgets state
+  const widgets: Widget[] = activeWidgets
+    .filter(id => widgetDefinitions[id as keyof typeof widgetDefinitions])
+    .map(id => widgetDefinitions[id as keyof typeof widgetDefinitions]);
+  
+  // Handle adding a new widget
+  const handleAddWidget = (widgetTemplate: WidgetTemplate) => {
+    // Only add if the widget isn't already active
+    if (!activeWidgets.includes(widgetTemplate.id)) {
+      setActiveWidgets([...activeWidgets, widgetTemplate.id]);
+
+      // Find the leftmost column (min x among all widgets)
+      const widgetList = Object.values(widgetDefinitions);
+      let minX = 0;
+      if (widgetList.length > 0) {
+        minX = Math.min(...widgetList.map(w => w.x));
+      }
+      // Find all widgets in the leftmost column
+      // const leftColWidgets = widgetList.filter(w => w.x === minX); // Removed unused variable
+      // Add the new widget at y=0
+      const defaultWidget = {
+        i: widgetTemplate.id,
+        x: minX,
+        y: 0,
+        w: widgetTemplate.defaultSize?.w || 1,
+        content: <div>New Widget: {widgetTemplate.title}</div>
+      };
+      widgetDefinitions[widgetTemplate.id as keyof typeof widgetDefinitions] = defaultWidget;
+    }
+  };
+
+  // Handle removing a widget
+  const handleRemoveWidget = (widgetId: string) => {
+    // Remove the widget from active widgets
+    setActiveWidgets(activeWidgets.filter(id => id !== widgetId));
+  };
+
+  // Add link handler for modal
+  const handleAddQuickLink = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newLink.title && newLink.url) {
+      const link = {
+        id: Date.now().toString(),
+        title: newLink.title,
+        url: newLink.url.startsWith('http') ? newLink.url : `https://${newLink.url}`
+      };
+      const prev = JSON.parse(localStorage.getItem('quick-links') || '[]');
+      const updated = [...prev, link];
+      localStorage.setItem('quick-links', JSON.stringify(updated));
+      setNewLink({ title: '', url: '' });
+      setShowAddQuickLinkModal(false);
+      setQuickLinksKey(k => k + 1); // Force QuickLinks to re-render
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
+      {/* Container for all widgets in grid layout */}
+      <div className="relative z-50 pt-4 pb-16">
+        <WidgetManager 
+          widgets={widgets}
+          onLayoutChange={() => {}}
+          onRemoveWidget={handleRemoveWidget}
+        />
       </div>
-
-      {/* User Guide Modal */}
-      {showUserGuide && (
-        <UserGuide onClose={() => setShowUserGuide(false)} />
+      {/* Add Quick Link Modal (fullscreen overlay, global) */}
+      {showAddQuickLinkModal && (
+        <div
+          className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm flex items-center justify-center"
+          onClick={e => {
+            if (e.target === e.currentTarget) setShowAddQuickLinkModal(false);
+          }}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 1000, damping: 32, duration: 0.25 }}
+            className="relative w-full max-w-md mx-auto bg-white dark:bg-[#222126] rounded-2xl shadow-2xl p-6 sm:p-8"
+          >
+            <form onSubmit={handleAddQuickLink} className="space-y-4">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <h3 className="text-base sm:text-lg md:text-xl font-semibold text-zinc-800 dark:text-zinc-100">
+                  Add Quick Link
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowAddQuickLinkModal(false)}
+                  className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-white p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-full transition-colors"
+                >
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="bg-white dark:bg-zinc-700 p-3 rounded-2xl shadow-md">
+                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-300 mb-2">Link Title</p>
+                <input
+                  type="text"
+                  placeholder="e.g. GitHub"
+                  value={newLink.title}
+                  onChange={e => setNewLink(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-white rounded-xl text-xs sm:text-sm p-3 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#ff4101] border border-zinc-200 dark:border-zinc-600"
+                  autoFocus
+                />
+              </div>
+              <div className="bg-white dark:bg-zinc-700 p-3 rounded-2xl shadow-md">
+                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-300 mb-2">URL</p>
+                <input
+                  type="text"
+                  placeholder="e.g. https://github.com"
+                  value={newLink.url}
+                  onChange={e => setNewLink(prev => ({ ...prev, url: e.target.value }))}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-white rounded-xl text-xs sm:text-sm p-3 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#ff4101] border border-zinc-200 dark:border-zinc-600"
+                />
+              </div>
+              <div className="flex gap-2 justify-end mt-5">
+                <button
+                  type="button"
+                  onClick={() => setShowAddQuickLinkModal(false)}
+                  className="px-4 py-2 text-xs sm:text-sm bg-zinc-500 hover:bg-zinc-600 text-white rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs sm:text-sm bg-[#ff4101] hover:bg-[#ee3d00] text-white rounded-xl transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Link
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
       )}
+      {/* Widget Selector Modal */}
+      <WidgetSelector onSelectWidget={handleAddWidget} />
 
-      {/* Footer with developer attribution */}
-      <footer className="mt-8 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
+      {/* User Guide Modal (fullscreen overlay) */}
+      {showUserGuide && (
+        <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center">
+          <div className="relative w-full h-full flex items-center justify-center">
+            <div className="absolute top-4 right-4 z-10">
+              <button onClick={() => setShowUserGuide(false)} className="bg-white dark:bg-zinc-800 rounded-full p-2 shadow hover:bg-zinc-100 dark:hover:bg-zinc-700 transition">
+                <span className="text-lg">&times;</span>
+              </button>
+            </div>
+            <div className="w-full max-w-2xl mx-auto bg-white dark:bg-[#222126] rounded-xl shadow-2xl p-6 overflow-auto">
+              <UserGuide onClose={() => setShowUserGuide(false)} />
+            </div>
+          </div>
+        </div>
+      )}      {/* Daily Info Modal (fullscreen overlay) */}
+      {showDailyInfoModal && (
+        <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center">
+          <div className="relative w-full h-full flex items-center justify-center">
+            <div className="absolute top-4 right-4 z-10">
+              <button onClick={() => setShowDailyInfoModal(false)} className="bg-white dark:bg-zinc-800 rounded-full p-2 shadow hover:bg-zinc-100 dark:hover:bg-zinc-700 transition">
+                <span className="text-lg">&times;</span>
+              </button>
+            </div>
+            <div className="w-full max-w-2xl mx-auto bg-white dark:bg-[#222126] rounded-xl shadow-2xl p-6 overflow-auto">
+              {/* Render your Daily Info content/component here */}
+              {/* Example: <DailyInfo ...props /> */}
+              <div className="text-center p-4">
+                <h3 className="text-xl mb-2">Daily Information</h3>
+                <p>This is a placeholder for daily information content.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}      {/* Footer with developer attribution */}
+      {/* <footer className="mt-8 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
         Made by <a 
           href="https://www.piyushdev.me" 
           target="_blank" 
@@ -705,9 +774,18 @@ function App() {
         >
           Piyush
         </a>
-      </footer>
+      </footer> */}
+
+      {/* Dock at the bottom right corner */}
+      <Dock />
     </div>
   );
 }
 
-export default App;
+export default function AppWithWidgetProvider() {
+  return (
+    <WidgetProvider>
+      <App />
+    </WidgetProvider>
+  );
+}

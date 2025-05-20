@@ -11,7 +11,7 @@
   
   body {
     @apply antialiased;
-    @apply dark:bg-[#18181c] bg-gray-100;
+    @apply dark:bg-[#2A2A2A] bg-gray-100;
     @apply text-gray-900 dark:text-white;
   }
 
@@ -27,6 +27,47 @@
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: #ff4101 #222126;
+  }
+  /* Styles for auto-height widgets */
+  .auto-height-widget {
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+    /* Fix for react-grid-layout with auto height */
+  .layout .react-grid-item.react-grid-placeholder {
+    transition-property: transform, width, height !important;
+  }
+  
+  /* Ensure widget content can drive height */
+  .widget-content-wrapper {
+    height: auto !important;
+    display: flex;
+    flex-direction: column;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Remove any extra spacing in grid items */
+  .react-grid-item {
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+    /* Hide resize handles completely since we're using autoHeight */
+  .react-resizable-handle {
+    display: none !important;
+  }
+  
+  /* Fix potential content overflow */
+  .react-grid-item {
+    overflow: visible !important;
+  }
+  
+  /* Make widget content drive the height */
+  .react-grid-item.auto-height-widget {
+    height: auto !important;
+    transition: width 0.2s ease, transform 0.2s ease !important;
   }
 
   .custom-scrollbar::-webkit-scrollbar {
@@ -69,6 +110,8 @@
   .counter-column-exit {
     animation: exitAnimation 0.5s ease forwards;
   }
+
+  
   
   @keyframes appearAnimation {
     0% {
@@ -132,5 +175,19 @@
     100% {
       transform: translateY(-100%);
     }
+  }
+
+  @keyframes dropdown-fade-in {
+    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes settings-fade-in {
+    from { opacity: 0; transform: translateY(32px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes settings-fade-out {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(32px) scale(0.98); }
   }
 }
