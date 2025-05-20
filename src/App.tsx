@@ -748,6 +748,32 @@ function App() {
     migrateTasks();
   }, []);
 
+  // --- FINAL: ENSURE LAYOUTS IS ALWAYS VALID BEFORE RENDER ---
+  // This will run before rendering WidgetManager and fix any undefined or empty layouts
+  const ensureValidLayouts = () => {
+    const key = 'widget-layouts';
+    let layouts = {} as { lg?: unknown };
+    try {
+      layouts = JSON.parse(localStorage.getItem(key) || '{}');
+    } catch {
+      layouts = {};
+    }
+    const lgLayout = layouts.lg as unknown;
+    if (!Array.isArray(lgLayout) || lgLayout.length === 0) {
+      const defaultLayouts = {
+        lg: [
+          { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
+          { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
+          { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
+          { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
+        ]
+      };
+      localStorage.setItem(key, JSON.stringify(defaultLayouts));
+      window.location.reload();
+    }
+  };
+  ensureValidLayouts();
+
   return (
     <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
       {/* Container for all widgets in grid layout */}
