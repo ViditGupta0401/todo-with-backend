@@ -16,6 +16,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDumbbell } from '@fortawesome/free-solid-svg-icons';
 import { motion } from 'framer-motion';
 import ClockWidget from './components/ClockWidget';
+import { migrateWidgetLayouts, migrateTasks, ensureValidWidgetLayouts, DEFAULT_WIDGET_LAYOUTS } from './utils/migration';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
@@ -646,133 +647,31 @@ function App() {
   };
 
   // --- MIGRATION HELPERS ---
-  function migrateWidgetLayouts() {
-    const key = 'widget-layouts';
-    const layouts = localStorage.getItem(key);
-    if (!layouts) {
-      // If missing, set a default layout for all widgets
-      const defaultLayouts = {
-        lg: [
-          { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
-          { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
-          { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
-          { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
-        ]
-      };
-      localStorage.setItem(key, JSON.stringify(defaultLayouts));
-      return;
-    }
-    try {
-      const parsed = JSON.parse(layouts);
-      // If it's an array or not an object with breakpoints, migrate to new format
-      if (Array.isArray(parsed) || typeof parsed !== 'object' || !parsed.lg) {
-        // Assume all widgets are in lg breakpoint, wrap in { lg: ... }
-        const migrated = { lg: Array.isArray(parsed) ? parsed : [] };
-        localStorage.setItem(key, JSON.stringify(migrated));
-      }
-      // If lg is empty, set default
-      if (parsed.lg && Array.isArray(parsed.lg) && parsed.lg.length === 0) {
-        parsed.lg = [
-          { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
-          { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
-          { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
-          { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
-        ];
-        localStorage.setItem(key, JSON.stringify(parsed));
-      }
-    } catch {
-      // If parsing fails, reset to default
-      const defaultLayouts = {
-        lg: [
-          { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
-          { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
-          { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
-          { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
-        ]
-      };
-      localStorage.setItem(key, JSON.stringify(defaultLayouts));
-    }
-  }
-
-  function migrateTasks() {
-    const key = 'todo-tracker-tasks';
-    const tasks = localStorage.getItem(key);
-    if (!tasks) return;
-    try {
-      const parsed = JSON.parse(tasks);
-      // If it's not an array, reset
-      if (!Array.isArray(parsed)) {
-        localStorage.setItem(key, JSON.stringify([]));
-      }
-    } catch {
-      localStorage.setItem(key, JSON.stringify([]));
-    }
+  function performMigrations() {
+    // Use the utility functions from migration.ts
+    migrateWidgetLayouts();
+    migrateTasks(STORAGE_KEY);
   }
 
   // --- FORCE LAYOUT RESET IF INVALID ---
   useEffect(() => {
-    const key = 'widget-layouts';
-    try {
-      const layouts = JSON.parse(localStorage.getItem(key) || '{}');
-      if (!layouts.lg || !Array.isArray(layouts.lg) || layouts.lg.length === 0) {
-        // Force reset
-        const defaultLayouts = {
-          lg: [
-            { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
-            { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
-            { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
-            { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
-          ]
-        };
-        localStorage.setItem(key, JSON.stringify(defaultLayouts));
-        window.location.reload();
-      }
-    } catch {
-      // If parsing fails, reset
-      const defaultLayouts = {
-        lg: [
-          { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
-          { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
-          { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
-          { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
-        ]
-      };
-      localStorage.setItem(key, JSON.stringify(defaultLayouts));
+    // Check if layouts are valid, if not, reload the page
+    if (!ensureValidWidgetLayouts()) {
       window.location.reload();
     }
-  }, []);
-
-  // Run migrations on app load
-  useEffect(() => {
-    migrateWidgetLayouts();
-    migrateTasks();
   }, []);
 
   // --- FINAL: ENSURE LAYOUTS IS ALWAYS VALID BEFORE RENDER ---
   // This will run before rendering WidgetManager and fix any undefined or empty layouts
   const ensureValidLayouts = () => {
-    const key = 'widget-layouts';
-    let layouts = {} as { lg?: unknown };
-    try {
-      layouts = JSON.parse(localStorage.getItem(key) || '{}');
-    } catch {
-      layouts = {};
-    }
-    const lgLayout = layouts.lg as unknown;
-    if (!Array.isArray(lgLayout) || lgLayout.length === 0) {
-      const defaultLayouts = {
-        lg: [
-          { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
-          { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
-          { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
-          { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
-        ]
-      };
-      localStorage.setItem(key, JSON.stringify(defaultLayouts));
-      window.location.reload();
-    }
+    return ensureValidWidgetLayouts();
   };
   ensureValidLayouts();
+
+  // Run migrations and ensure valid layouts on component mount
+  useEffect(() => {
+    performMigrations();
+  }, []);
 
   return (
     <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
