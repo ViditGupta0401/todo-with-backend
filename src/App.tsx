@@ -649,11 +649,15 @@ function App() {
     <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
       {/* Container for all widgets in grid layout */}
       <div className="relative z-50 pt-4 pb-16">
-        <WidgetManager 
-          widgets={widgets}
-          onLayoutChange={() => {}}
-          onRemoveWidget={handleRemoveWidget}
-        />
+        {widgets.length > 0 ? (
+          <WidgetManager 
+            widgets={widgets}
+            onLayoutChange={() => {}}
+            onRemoveWidget={handleRemoveWidget}
+          />
+        ) : (
+          <div className="text-center text-gray-400 py-12">No widgets to display.</div>
+        )}
       </div>
       {/* Add Quick Link Modal (fullscreen overlay, global) */}
       {showAddQuickLinkModal && (
