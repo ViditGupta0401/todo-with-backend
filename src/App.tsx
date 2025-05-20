@@ -645,6 +645,46 @@ function App() {
     }
   };
 
+  // --- MIGRATION HELPERS ---
+  function migrateWidgetLayouts() {
+    const key = 'widget-layouts';
+    const layouts = localStorage.getItem(key);
+    if (!layouts) return;
+    try {
+      const parsed = JSON.parse(layouts);
+      // If it's an array or not an object with breakpoints, migrate to new format
+      if (Array.isArray(parsed) || typeof parsed !== 'object' || !parsed.lg) {
+        // Assume all widgets are in lg breakpoint, wrap in { lg: ... }
+        const migrated = { lg: Array.isArray(parsed) ? parsed : [] };
+        localStorage.setItem(key, JSON.stringify(migrated));
+      }
+    } catch {
+      // If parsing fails, reset to default
+      localStorage.setItem(key, JSON.stringify({ lg: [] }));
+    }
+  }
+
+  function migrateTasks() {
+    const key = 'todo-tracker-tasks';
+    const tasks = localStorage.getItem(key);
+    if (!tasks) return;
+    try {
+      const parsed = JSON.parse(tasks);
+      // If it's not an array, reset
+      if (!Array.isArray(parsed)) {
+        localStorage.setItem(key, JSON.stringify([]));
+      }
+    } catch {
+      localStorage.setItem(key, JSON.stringify([]));
+    }
+  }
+
+  // Run migrations on app load
+  useEffect(() => {
+    migrateWidgetLayouts();
+    migrateTasks();
+  }, []);
+
   return (
     <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
       {/* Container for all widgets in grid layout */}
