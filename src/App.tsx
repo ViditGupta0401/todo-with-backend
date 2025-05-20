@@ -709,6 +709,39 @@ function App() {
     }
   }
 
+  // --- FORCE LAYOUT RESET IF INVALID ---
+  useEffect(() => {
+    const key = 'widget-layouts';
+    try {
+      const layouts = JSON.parse(localStorage.getItem(key) || '{}');
+      if (!layouts.lg || !Array.isArray(layouts.lg) || layouts.lg.length === 0) {
+        // Force reset
+        const defaultLayouts = {
+          lg: [
+            { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
+            { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
+            { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
+            { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
+          ]
+        };
+        localStorage.setItem(key, JSON.stringify(defaultLayouts));
+        window.location.reload();
+      }
+    } catch {
+      // If parsing fails, reset
+      const defaultLayouts = {
+        lg: [
+          { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
+          { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
+          { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
+          { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
+        ]
+      };
+      localStorage.setItem(key, JSON.stringify(defaultLayouts));
+      window.location.reload();
+    }
+  }, []);
+
   // Run migrations on app load
   useEffect(() => {
     migrateWidgetLayouts();
