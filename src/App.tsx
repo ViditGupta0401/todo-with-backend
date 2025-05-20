@@ -649,7 +649,19 @@ function App() {
   function migrateWidgetLayouts() {
     const key = 'widget-layouts';
     const layouts = localStorage.getItem(key);
-    if (!layouts) return;
+    if (!layouts) {
+      // If missing, set a default layout for all widgets
+      const defaultLayouts = {
+        lg: [
+          { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
+          { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
+          { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
+          { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
+        ]
+      };
+      localStorage.setItem(key, JSON.stringify(defaultLayouts));
+      return;
+    }
     try {
       const parsed = JSON.parse(layouts);
       // If it's an array or not an object with breakpoints, migrate to new format
@@ -658,9 +670,27 @@ function App() {
         const migrated = { lg: Array.isArray(parsed) ? parsed : [] };
         localStorage.setItem(key, JSON.stringify(migrated));
       }
+      // If lg is empty, set default
+      if (parsed.lg && Array.isArray(parsed.lg) && parsed.lg.length === 0) {
+        parsed.lg = [
+          { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
+          { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
+          { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
+          { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
+        ];
+        localStorage.setItem(key, JSON.stringify(parsed));
+      }
     } catch {
       // If parsing fails, reset to default
-      localStorage.setItem(key, JSON.stringify({ lg: [] }));
+      const defaultLayouts = {
+        lg: [
+          { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
+          { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
+          { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
+          { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
+        ]
+      };
+      localStorage.setItem(key, JSON.stringify(defaultLayouts));
     }
   }
 
