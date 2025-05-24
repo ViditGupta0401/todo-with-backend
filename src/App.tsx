@@ -20,6 +20,7 @@ import { migrateWidgetLayouts, migrateTasks, ensureValidWidgetLayouts, DEFAULT_W
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
+const LAST_SAVED_DATE_KEY = 'last-saved-date';
 
 // Using Task type directly instead of a separate StoredTask interface
 // No need for a separate storage format type
@@ -39,6 +40,9 @@ function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   // Add this ref to track initial mount and prevent task clearing on refresh
   const isInitialRender = useRef(true);
+  
+  // Store the current date for detecting manual date changes
+  const currentDateRef = useRef<string>(format(new Date(), 'yyyy-MM-dd'));
   
   const [dailyData, setDailyData] = useState<DailyData[]>(() => {
     const savedData = localStorage.getItem(DAILY_DATA_KEY);
@@ -79,7 +83,21 @@ function App() {
       today.setDate(today.getDate() - 1);
     }
     const todayStr = format(today, 'yyyy-MM-dd');
+    
+    // Check for manual date changes
+    if (currentDateRef.current !== todayStr) {
+      console.log(`Date has changed: ${currentDateRef.current} -> ${todayStr}`);
+      currentDateRef.current = todayStr;
+    }
+    
     console.log(`${isInitializing ? 'Initializing' : 'Updating'} daily data for:`, todayStr);
+    
+    // Log the task composition for debugging
+    const repeatingCount = currentTasks.filter(task => task.isRepeating).length;
+    const nonRepeatingCount = currentTasks.filter(task => !task.isRepeating).length;
+    const completedCount = currentTasks.filter(task => task.completed).length;
+    
+    console.log(`Task composition: ${repeatingCount} repeating, ${nonRepeatingCount} non-repeating, ${completedCount} completed`);
     
     // Get repeating task IDs - only tasks marked as repeating
     const repeatingTaskIds = currentTasks
@@ -97,7 +115,10 @@ function App() {
       .map(task => task.id);
     
     // Calculate total tasks (both repeating and non-repeating)
-    const totalTasksForToday = repeatingTaskIds.length + nonRepeatingTaskIds.length;
+    // For normal updates, include all tasks. For day initialization, only include repeating tasks
+    const totalTasksForToday = isInitializing ? 
+      repeatingTaskIds.length : 
+      repeatingTaskIds.length + nonRepeatingTaskIds.length;
     
     // Get texts of completed tasks for history
     const completedTaskTexts = currentTasks
@@ -108,22 +129,7 @@ function App() {
         priority: task.priority
       }));
     
-    // Check previous day's data if initializing for a new day
-    let previousDayCompletedTaskTexts: { id: string; text: string; priority: 'high' | 'medium' | 'low' }[] = [];
-    if (isInitializing) {
-      // Calculate previous day's date
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
-      
-      // Find previous day's data
-      const previousDayData = dailyData.find(d => d.date === yesterdayStr);
-      if (previousDayData?.completedTaskTexts?.length) {
-        // Keep track of previous day's completed tasks for history
-        previousDayCompletedTaskTexts = previousDayData.completedTaskTexts;
-        console.log('Keeping history from previous day:', previousDayCompletedTaskTexts.length, 'completed tasks');
-      }
-    }
+    // When initializing a new day, we don't carry over any completed task texts
     
     // Update daily data
     setDailyData(prevData => {
@@ -141,7 +147,7 @@ function App() {
           repeatingTaskIds: repeatingTaskIds,
           nonRepeatingTaskIds: nonRepeatingTaskIds,
           completedTaskTexts: isInitializing
-            ? [...previousDayCompletedTaskTexts, ...completedTaskTexts] // Add history on initialization
+            ? completedTaskTexts // Don't add previous day's history on initialization
             : [...existingCompletedTexts, ...completedTaskTexts.filter(newTask => 
                 !existingCompletedTexts.some(existingTask => existingTask.id === newTask.id)
               )] // Add only new completed tasks
@@ -155,9 +161,7 @@ function App() {
           completedTaskIds: completedTaskIds,
           repeatingTaskIds: repeatingTaskIds,
           nonRepeatingTaskIds: nonRepeatingTaskIds,
-          completedTaskTexts: isInitializing
-            ? [...previousDayCompletedTaskTexts, ...completedTaskTexts] // Include history on initialization
-            : completedTaskTexts
+          completedTaskTexts: completedTaskTexts // Don't include previous day's history
         };
         return [...prevData, newDayData];
       }
@@ -191,7 +195,46 @@ function App() {
         
         console.log('Parsed tasks:', parsedTasks);
         if (parsedTasks.length > 0) {
-          setTasks(parsedTasks);
+          // More aggressive check for day changes, including manual system date changes
+          const now = new Date();
+          const today = new Date(now);
+          if (now.getHours() < 5) {
+            today.setDate(today.getDate() - 1);
+          }
+          const todayStr = format(today, 'yyyy-MM-dd');
+          
+          // Get the last saved date
+          const lastSavedDate = localStorage.getItem(LAST_SAVED_DATE_KEY);
+          
+          // Update our current date reference
+          currentDateRef.current = todayStr;
+          
+          // Force a reset if there's no saved date or if the date has changed
+          // This ensures we always start a new day with only repeating tasks that are unchecked
+          const needsReset = !lastSavedDate || lastSavedDate !== todayStr;
+          
+          console.log('Last saved date:', lastSavedDate, 'Current date:', todayStr, 'Needs reset:', needsReset);
+          
+          if (needsReset) {
+            // On day change or first load, only keep repeating tasks and reset them to unchecked
+            const repeatingTasksOnly = parsedTasks
+              .filter((task: Task) => task.isRepeating)
+              .map((task: Task) => ({
+                ...task,
+                completed: false // Always start with all repeating tasks unchecked
+              }));
+            
+            const nonRepeatingCount = parsedTasks.filter((task: Task) => !task.isRepeating).length;
+            console.log(`Day changed - Filtered out ${nonRepeatingCount} non-repeating tasks, kept ${repeatingTasksOnly.length} repeating tasks (reset to unchecked)`);
+            
+            setTasks(repeatingTasksOnly);
+            
+            // Store current date as last saved date
+            localStorage.setItem(LAST_SAVED_DATE_KEY, todayStr);
+          } else {
+            console.log(`Same day - loading all ${parsedTasks.length} tasks without changes`);
+            setTasks(parsedTasks);
+          }
         }
       }
     } catch (error) {
@@ -223,6 +266,9 @@ function App() {
     }
     const todayStr = format(today, 'yyyy-MM-dd');
     
+    // Always update our current date reference
+    currentDateRef.current = todayStr;
+    
     // Check if we already have an entry for today
     const hasTodayEntry = dailyData.some(d => d.date === todayStr);
     
@@ -230,49 +276,30 @@ function App() {
     if (!hasTodayEntry) {
       console.log('Auto-initializing daily data for today:', todayStr);
       
-      // Instead of calling updateDailyData directly, we'll do the same logic here
+      // When initializing, only include repeating tasks
+      // These should match what we've loaded from localStorage after filtering
       const repeatingTaskIds = tasks
         .filter(task => task.isRepeating)
         .map(task => task.id);
       
-      const nonRepeatingTaskIds = tasks
-        .filter(task => !task.isRepeating)
-        .map(task => task.id);
+      // For new day initialization, we're not carrying over history from previous day
       
-      const completedTaskIds = tasks
-        .filter(task => task.completed)
-        .map(task => task.id);
+      // We don't need previous day's completed task texts for a new day
       
-      const totalTasksForToday = repeatingTaskIds.length + nonRepeatingTaskIds.length;
-      
-      const completedTaskTexts = tasks
-        .filter(task => task.completed)
-        .map(task => ({
-          id: task.id,
-          text: task.text,
-          priority: task.priority
-        }));
-      
-      // Get previous day's completed tasks for history if needed
-      let previousDayCompletedTaskTexts: { id: string; text: string; priority: 'high' | 'medium' | 'low' }[] = [];
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
-      
-      const previousDayData = dailyData.find(d => d.date === yesterdayStr);
-      if (previousDayData?.completedTaskTexts?.length) {
-        previousDayCompletedTaskTexts = previousDayData.completedTaskTexts;
-      }
+      // Since we're initializing a new day or we had a day change,
+      // there should be no non-repeating tasks in our tasks array now
+      const nonRepeatingTaskIds: string[] = []; // Empty array for new day
       
       setDailyData(prevData => {
         const newDayData = {
           date: todayStr,
-          completedTasks: completedTaskIds.length,
-          totalTasks: totalTasksForToday,
-          completedTaskIds: completedTaskIds,
+          completedTasks: 0 // Start with 0 completed tasks for the new day
+          ,
+          totalTasks: repeatingTaskIds.length,  // Only count repeating tasks in total
+          completedTaskIds: [], // Start with empty completedTaskIds for new day
           repeatingTaskIds: repeatingTaskIds,
-          nonRepeatingTaskIds: nonRepeatingTaskIds,
-          completedTaskTexts: [...previousDayCompletedTaskTexts, ...completedTaskTexts]
+          nonRepeatingTaskIds: nonRepeatingTaskIds, // Empty array for new day
+          completedTaskTexts: [] // Start with empty completedTaskTexts for new day
         };
         return [...prevData, newDayData];
       });
@@ -305,7 +332,7 @@ function App() {
         const previousDate = format(new Date(new Date().setDate(now.getDate() - 1)), 'yyyy-MM-dd');
         
         // Save the current date
-        localStorage.setItem('last-saved-date', currentDate);
+        localStorage.setItem(LAST_SAVED_DATE_KEY, currentDate);
         
         // Get yesterday's data for updating completed tasks history
         const yesterdayData = dailyData.find(d => d.date === previousDate);
@@ -356,41 +383,38 @@ function App() {
           }
         }
         
-        // Reset completed status for repeating tasks and REMOVE ALL non-repeating tasks
-        setTasks(prevTasks => {
-          const resetDate = format(new Date(), 'yyyy-MM-dd');
-          console.log('Resetting tasks for date:', resetDate);
+        // Filter out repeating tasks first so we can use them for both state updates
+        console.log('Tasks before 5 AM reset:', tasks);
+        
+        const repeatingTasksList = tasks
+          .filter(task => task.isRepeating)
+          .map(task => ({
+            ...task,
+            completed: false, // Always reset to incomplete
+            lastCompleted: task.completed ? Date.now() : task.lastCompleted // Track last completion time
+          }));
+        
+        console.log('Tasks after 5 AM reset (repeating tasks only, unchecked):', repeatingTasksList);
           
-          // Count tasks before filtering for logging
-          const nonRepeatingCount = prevTasks.filter(task => !task.isRepeating).length;
-          const repeatingCount = prevTasks.filter(task => task.isRepeating).length;
-          
-          // Keep ONLY repeating tasks and reset their completed status to false
-          const repeatingTasks = prevTasks
-            .filter(task => task.isRepeating)
-            .map(task => ({
-              ...task,
-              completed: false, // Always reset to incomplete
-              lastCompleted: task.completed ? Date.now() : task.lastCompleted // Track last completion time
-            }));
-            
-          console.log(`Task reset summary: Kept ${repeatingCount} repeating tasks (now incomplete), removed ${nonRepeatingCount} non-repeating tasks`);
-          
-          return repeatingTasks;
-        });
+        const resetDate = format(new Date(), 'yyyy-MM-dd');
+        console.log('Resetting tasks for date:', resetDate);
+        
+        // Count tasks before filtering for logging
+        const nonRepeatingCount = tasks.filter(task => !task.isRepeating).length;
+        const repeatingCount = repeatingTasksList.length;
+        
+        console.log(`Task reset summary: Kept ${repeatingCount} repeating tasks (now incomplete), removed ${nonRepeatingCount} non-repeating tasks`);
+        
+        // Update tasks state with only repeating tasks
+        setTasks(repeatingTasksList);
         
         // Create a new day entry in daily data for today
         setDailyData(prevData => {
-          // Get repeating task IDs from the updated task list (after filtering)
-          const repeatingTaskIds = tasks
-            .filter(task => task.isRepeating)
-            .map(task => task.id);
+          // Use the filtered repeatingTasksList for IDs, not the original tasks array
+          const repeatingTaskIds = repeatingTasksList.map(task => task.id);
           
-          // Get yesterday's completed task history to preserve
-          let yesterdayCompletedTasks: { id: string; text: string; priority: 'high' | 'medium' | 'low' }[] = [];
-          if (yesterdayData && yesterdayData.completedTaskTexts) {
-            yesterdayCompletedTasks = yesterdayData.completedTaskTexts;
-          }
+          // We don't need to carry over any completed task history for the next day
+          // All tasks start as incomplete in the new day
             
           const existingDayIndex = prevData.findIndex(d => d.date === currentDate);
           
@@ -399,26 +423,26 @@ function App() {
             const newData = [...prevData];
             newData[existingDayIndex] = {
               ...newData[existingDayIndex],
-              completedTasks: 0,
-              completedTaskIds: [],
+              completedTasks: 0, // Reset completed count
+              completedTaskIds: [], // Reset completed IDs
               repeatingTaskIds: repeatingTaskIds, 
               nonRepeatingTaskIds: [], // No non-repeating tasks on day reset
               totalTasks: repeatingTaskIds.length,
-              // Preserve yesterday's completed task history
-              completedTaskTexts: yesterdayCompletedTasks
+              // Don't preserve any completed task history - start fresh
+              completedTaskTexts: []
             };
             return newData;
           } else {
             // Create new day entry for today
             return [...prevData, {
               date: currentDate,
-              completedTasks: 0,
+              completedTasks: 0, // Reset completed count
               totalTasks: repeatingTaskIds.length,
-              completedTaskIds: [],
+              completedTaskIds: [], // Reset completed IDs
               repeatingTaskIds: repeatingTaskIds,
               nonRepeatingTaskIds: [],
-              // Include yesterday's completed task history
-              completedTaskTexts: yesterdayCompletedTasks
+              // Start with an empty completedTaskTexts array for the new day
+              completedTaskTexts: []
             }];
           }
         });
@@ -793,6 +817,113 @@ function App() {
     performMigrations();
   }, []);
 
+  // Check for manual date changes (e.g., through system settings)
+  useEffect(() => {
+    const checkDateChange = () => {
+      const now = new Date();
+      const today = new Date(now);
+      // Apply the 5 AM logic consistently
+      if (now.getHours() < 5) {
+        today.setDate(today.getDate() - 1);
+      }
+      const todayStr = format(today, 'yyyy-MM-dd');
+      
+      const lastKnownDate = currentDateRef.current;
+      
+      // If the date has changed since our last check
+      if (lastKnownDate !== todayStr) {
+        console.log('Date change detected:', lastKnownDate, '->', todayStr);
+        
+        // Update our reference date
+        currentDateRef.current = todayStr;
+        
+        // Only reset tasks if it's a forward date change (not going back in time)
+        const isForwardDateChange = new Date(todayStr) > new Date(lastKnownDate);
+        
+        if (isForwardDateChange) {
+          console.log('Forward date change detected, resetting tasks...');
+          
+          // Reset the tasks: keep only repeating tasks and uncheck them
+          setTasks(prevTasks => {
+            const repeatingTasksOnly = prevTasks
+              .filter(task => task.isRepeating)
+              .map(task => ({
+                ...task,
+                completed: false,
+                lastCompleted: task.completed ? Date.now() : task.lastCompleted
+              }));
+            
+            // Save the new date
+            localStorage.setItem(LAST_SAVED_DATE_KEY, todayStr);
+            
+            // Log the task reset
+            const nonRepeatingCount = prevTasks.filter(task => !task.isRepeating).length;
+            console.log(`Manual date change task reset: Removing ${nonRepeatingCount} non-repeating tasks, keeping ${repeatingTasksOnly.length} repeating tasks (now unchecked)`);
+            
+            return repeatingTasksOnly;
+          });
+        }
+      }
+    };
+    
+    // Check every minute for date changes
+    const interval = setInterval(checkDateChange, 60000);
+    
+    // Also check immediately on mount
+    checkDateChange();
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Check for date changes when the window regains focus
+  // This helps catch manual date changes while the app was in the background
+  useEffect(() => {
+    const handleFocus = () => {
+      const now = new Date();
+      const today = new Date(now);
+      if (now.getHours() < 5) {
+        today.setDate(today.getDate() - 1);
+      }
+      const todayStr = format(today, 'yyyy-MM-dd');
+      
+      if (currentDateRef.current !== todayStr) {
+        console.log(`Date changed while app was inactive: ${currentDateRef.current} -> ${todayStr}`);
+        
+        // Only reset tasks if it's a forward date change (not going back in time)
+        const isForwardDateChange = new Date(todayStr) > new Date(currentDateRef.current);
+        
+        // Update our reference date
+        currentDateRef.current = todayStr;
+        
+        if (isForwardDateChange) {
+          console.log('Forward date change detected on window focus, resetting tasks...');
+          
+          // Reset the tasks: keep only repeating tasks and uncheck them
+          setTasks(prevTasks => {
+            const repeatingTasksOnly = prevTasks
+              .filter(task => task.isRepeating)
+              .map(task => ({
+                ...task,
+                completed: false,
+                lastCompleted: task.completed ? Date.now() : task.lastCompleted
+              }));
+            
+            // Save the new date
+            localStorage.setItem(LAST_SAVED_DATE_KEY, todayStr);
+            
+            return repeatingTasksOnly;
+          });
+        }
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+  
   return (
     <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
       {/* Container for all widgets in grid layout */}
