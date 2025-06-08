@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiX, FiGrid, FiLink, FiBarChart2, FiClock } from 'react-icons/fi';
+import { FiX, FiGrid, FiLink, FiBarChart2, FiClock, FiCalendar, FiCoffee } from 'react-icons/fi';
 import { useWidgetContext } from '../context/WidgetContext';
 
 // Define a type for widget templates that can be added to the screen
@@ -48,6 +48,20 @@ const availableWidgets: WidgetTemplate[] = [
     icon: <FiClock size={24} />,
     description: 'A beautiful clock with week, month, year progress',
     defaultSize: { w: 2, h: 2 }
+  },
+  {
+    id: 'upcomingEvents',
+    title: 'Upcoming Events',
+    icon: <FiCalendar size={24} />,
+    description: 'See your upcoming events, exams, and deadlines',
+    defaultSize: { w: 1, h: 3 }
+  },
+  {
+    id: 'pomodoro',
+    title: 'Pomodoro Timer',
+    icon: <FiCoffee size={24} />,
+    description: 'Focus timer with customizable intervals',
+    defaultSize: { w: 1, h: 2 }
   }
 ];
 

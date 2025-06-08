@@ -4,19 +4,22 @@ import { Analytics } from './components/Analytics';
 import { Heatmap } from './components/Heatmap';
 import { QuickLinks } from './components/QuickLinks';
 import { BMICalculator } from './components/BMICalculator';
-import { UserGuide } from './components/UserGuide'; // Import the UserGuide component
 import { useTheme } from './context/ThemeContext';
 import Dock from './components/Dock'; // Import the Dock component
 import WidgetManager, { Widget } from './components/WidgetManager'; // Import our new WidgetManager
 import WidgetSelector, { WidgetTemplate } from './components/WidgetSelector'; // Import new WidgetSelector
-import { WidgetProvider, useWidgetContext } from './context/WidgetContext';
+import { useWidgetContext } from './context/WidgetContext';
+import PomodoroWidget from './components/PomodoroTimer/PomodoroWidget'; // Import PomodoroWidget
+import { PomodoroSettingsProvider } from './context/PomodoroSettingsContext';
+
+import PopupManager from './components/popups/PopupManager'; // Import PopupManager
 import type { Task, Filter } from './types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDumbbell } from '@fortawesome/free-solid-svg-icons';
-import { motion } from 'framer-motion';
 import ClockWidget from './components/ClockWidget';
-import { migrateWidgetLayouts, migrateTasks, ensureValidWidgetLayouts, DEFAULT_WIDGET_LAYOUTS } from './utils/migration';
+import UpcomingEventsWidget from './components/UpcomingEventsWidget';
+import { migrateWidgetLayouts, migrateTasks, ensureValidWidgetLayouts } from './utils/migration';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
@@ -59,21 +62,17 @@ function App() {
   const [filter, setFilter] = useState<Filter>('all');
   // We only need selectedMonth for date-based features
   const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const { theme } = useTheme();  const [showBMI, setShowBMI] = useState<boolean>(false);
-  const [showUserGuide, setShowUserGuide] = useState<boolean>(false); // Add state for user guide
+  const { theme } = useTheme();
+  const [showBMI, setShowBMI] = useState<boolean>(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState<boolean>(false); // Add state for filter dropdown
-  const [showAddQuickLinkModal, setShowAddQuickLinkModal] = useState<boolean>(false); // Add state for add quick link modal
-  const [showDailyInfoModal, setShowDailyInfoModal] = useState<boolean>(false); // Add state for daily info modal
-
+  
   // Use context for widget state
   const {
     activeWidgets,
     setActiveWidgets
-    // Removed unused: isEditingLayout, setIsEditingLayout, showWidgetSelector, setShowWidgetSelector
   } = useWidgetContext();
   
   const [quickLinksKey, setQuickLinksKey] = useState(0); // To force re-render
-  const [newLink, setNewLink] = useState({ title: '', url: '' });
 
   // Function to update daily data
   const updateDailyData = (currentTasks: Task[], isInitializing = false) => {
@@ -649,7 +648,7 @@ function App() {
       x: 0, // Column 0
       y: 0, // Row 0
       w: 1, // Width: 1 column
-      content: <QuickLinks key={quickLinksKey} onAddLinkClick={() => setShowAddQuickLinkModal(true)} />
+      content: <QuickLinks key={quickLinksKey} />
     },
     todoList: {
       i: 'todoList',
@@ -726,12 +725,26 @@ function App() {
         </div>
       )
     },
+    upcomingEvents: {
+      i: 'upcomingEvents',
+      x: 3, // Column 3
+      y: 1, // Row 1
+      w: 1, // Width: 1 column
+      content: <UpcomingEventsWidget />
+    },
     clock: {
       i: 'clock',
       x: 0,
       y: 1,
       w: 1, // Set to 1 column width
       content: <ClockWidget />
+    },
+    pomodoro: {
+      i: 'pomodoro',
+      x: 2,
+      y: 1,
+      w: 1,
+      content: <PomodoroWidget />
     }
   };
 
@@ -772,22 +785,17 @@ function App() {
     setActiveWidgets(activeWidgets.filter(id => id !== widgetId));
   };
 
-  // Add link handler for modal
-  const handleAddQuickLink = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newLink.title && newLink.url) {
-      const link = {
-        id: Date.now().toString(),
-        title: newLink.title,
-        url: newLink.url.startsWith('http') ? newLink.url : `https://${newLink.url}`
-      };
-      const prev = JSON.parse(localStorage.getItem('quick-links') || '[]');
-      const updated = [...prev, link];
-      localStorage.setItem('quick-links', JSON.stringify(updated));
-      setNewLink({ title: '', url: '' });
-      setShowAddQuickLinkModal(false);
-      setQuickLinksKey(k => k + 1); // Force QuickLinks to re-render
-    }
+  // Add link handler for popup system
+  const handleAddQuickLink = (link: { title: string; url: string }) => {
+    const newQuickLink = {
+      id: Date.now().toString(),
+      title: link.title,
+      url: link.url.startsWith('http') ? link.url : `https://${link.url}`
+    };
+    const prev = JSON.parse(localStorage.getItem('quick-links') || '[]');
+    const updated = [...prev, newQuickLink];
+    localStorage.setItem('quick-links', JSON.stringify(updated));
+    setQuickLinksKey(k => k + 1); // Force QuickLinks to re-render
   };
 
   // --- MIGRATION HELPERS ---
@@ -925,150 +933,75 @@ function App() {
   }, []);
   
   return (
-    <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
-      {/* Container for all widgets in grid layout */}
-      <div className="relative z-50 pt-4 pb-16">
-        {widgets.length > 0 ? (
-          <WidgetManager 
-            widgets={widgets}
-            onLayoutChange={() => {}}
-            onRemoveWidget={handleRemoveWidget}
-          />
-        ) : (
-          <div className="text-center text-gray-400 py-12">No widgets to display.</div>
-        )}
-      </div>
-      {/* Add Quick Link Modal (fullscreen overlay, global) */}
-      {showAddQuickLinkModal && (
-        <div
-          className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm flex items-center justify-center"
-          onClick={e => {
-            if (e.target === e.currentTarget) setShowAddQuickLinkModal(false);
+    <PomodoroSettingsProvider>
+      <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
+        {/* Container for all widgets in grid layout */}
+        <div className="relative z-50 pt-4 pb-16">
+          {widgets.length > 0 ? (
+            <WidgetManager 
+              widgets={widgets}
+              onLayoutChange={() => {}}
+              onRemoveWidget={handleRemoveWidget}
+            />
+          ) : (
+            <div className="text-center text-gray-400 py-12">No widgets to display.</div>
+          )}
+        </div>
+        
+        {/* Widget Selector Modal */}
+        <WidgetSelector onSelectWidget={handleAddWidget} />
+        
+        {/* Centralized PopupManager for all modal popups */}
+        <PopupManager 
+          onAddEvent={(event) => {
+            // Use the shared event utility function to add the event
+            const newEvent = {
+              id: Date.now().toString(),
+              ...event,
+              // Ensure color is a valid EventColor type
+              color: event.color as 'red' | 'purple' | 'blue' | 'green' | 'orange'
+            };
+            
+            // Add event to storage using our utility function
+            // The storage event listener in UpcomingEventsWidget will handle the update
+            import('./utils/eventUtils')
+              .then(({ addEvent }) => {
+                addEvent(newEvent);
+                // No need to dispatch custom event - the storage event will handle it
+              })
+              .catch(err => {
+                console.error('Error adding event:', err);
+                // Fallback if import fails
+                const savedEvents = localStorage.getItem('upcoming-events-data');
+                const events = savedEvents ? JSON.parse(savedEvents) : [];
+                localStorage.setItem('upcoming-events-data', JSON.stringify([...events, newEvent]));
+                
+                // Dispatch the custom event only in fallback case
+                // when we don't have the utility function's storage event
+                const eventAddedEvent = new CustomEvent('event-added', {
+                  detail: { event: newEvent }
+                });
+                window.dispatchEvent(eventAddedEvent);
+              });
           }}
-        >
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 1000, damping: 32, duration: 0.25 }}
-            className="relative w-full max-w-md mx-auto bg-white dark:bg-[#222126] rounded-2xl shadow-2xl p-6 sm:p-8"
+          onAddQuickLink={handleAddQuickLink}
+        />      {/* Footer with developer attribution */}
+        {/* <footer className="mt-8 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
+          Made by <a 
+            href="https://www.piyushdev.me" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-[#ff4101] hover:underline transition-all"
           >
-            <form onSubmit={handleAddQuickLink} className="space-y-4">
-              <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <h3 className="text-base sm:text-lg md:text-xl font-semibold text-zinc-800 dark:text-zinc-100">
-                  Add Quick Link
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setShowAddQuickLinkModal(false)}
-                  className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-white p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-full transition-colors"
-                >
-                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="bg-white dark:bg-zinc-700 p-3 rounded-2xl shadow-md">
-                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-300 mb-2">Link Title</p>
-                <input
-                  type="text"
-                  placeholder="e.g. GitHub"
-                  value={newLink.title}
-                  onChange={e => setNewLink(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-white rounded-xl text-xs sm:text-sm p-3 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#ff4101] border border-zinc-200 dark:border-zinc-600"
-                  autoFocus
-                />
-              </div>
-              <div className="bg-white dark:bg-zinc-700 p-3 rounded-2xl shadow-md">
-                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-300 mb-2">URL</p>
-                <input
-                  type="text"
-                  placeholder="e.g. https://github.com"
-                  value={newLink.url}
-                  onChange={e => setNewLink(prev => ({ ...prev, url: e.target.value }))}
-                  className="w-full bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-white rounded-xl text-xs sm:text-sm p-3 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#ff4101] border border-zinc-200 dark:border-zinc-600"
-                />
-              </div>
-              <div className="flex gap-2 justify-end mt-5">
-                <button
-                  type="button"
-                  onClick={() => setShowAddQuickLinkModal(false)}
-                  className="px-4 py-2 text-xs sm:text-sm bg-zinc-500 hover:bg-zinc-600 text-white rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs sm:text-sm bg-[#ff4101] hover:bg-[#ee3d00] text-white rounded-xl transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Link
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
-      {/* Widget Selector Modal */}
-      <WidgetSelector onSelectWidget={handleAddWidget} />
+            Piyush
+          </a>
+        </footer> */}
 
-      {/* User Guide Modal (fullscreen overlay) */}
-      {showUserGuide && (
-        <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center">
-          <div className="relative w-full h-full flex items-center justify-center">
-            <div className="absolute top-4 right-4 z-10">
-              <button onClick={() => setShowUserGuide(false)} className="bg-white dark:bg-zinc-800 rounded-full p-2 shadow hover:bg-zinc-100 dark:hover:bg-zinc-700 transition">
-                <span className="text-lg">&times;</span>
-              </button>
-            </div>
-            <div className="w-full max-w-2xl mx-auto bg-white dark:bg-[#222126] rounded-xl shadow-2xl p-6 overflow-auto">
-              <UserGuide onClose={() => setShowUserGuide(false)} />
-            </div>
-          </div>
-        </div>
-      )}      {/* Daily Info Modal (fullscreen overlay) */}
-      {showDailyInfoModal && (
-        <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center">
-          <div className="relative w-full h-full flex items-center justify-center">
-            <div className="absolute top-4 right-4 z-10">
-              <button onClick={() => setShowDailyInfoModal(false)} className="bg-white dark:bg-zinc-800 rounded-full p-2 shadow hover:bg-zinc-100 dark:hover:bg-zinc-700 transition">
-                <span className="text-lg">&times;</span>
-              </button>
-            </div>
-            <div className="w-full max-w-2xl mx-auto bg-white dark:bg-[#222126] rounded-xl shadow-2xl p-6 overflow-auto">
-              {/* Render your Daily Info content/component here */}
-              {/* Example: <DailyInfo ...props /> */}
-              <div className="text-center p-4">
-                <h3 className="text-xl mb-2">Daily Information</h3>
-                <p>This is a placeholder for daily information content.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}      {/* Footer with developer attribution */}
-      {/* <footer className="mt-8 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
-        Made by <a 
-          href="https://www.piyushdev.me" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="text-[#ff4101] hover:underline transition-all"
-        >
-          Piyush
-        </a>
-      </footer> */}
-
-      {/* Dock at the bottom right corner */}
-      <Dock />
-    </div>
+        {/* Dock at the bottom right corner */}
+        <Dock />
+      </div>
+    </PomodoroSettingsProvider>
   );
 }
 
-export default function AppWithWidgetProvider() {
-  return (
-    <WidgetProvider>
-      <App />
-    </WidgetProvider>
-  );
-}
+export default App;

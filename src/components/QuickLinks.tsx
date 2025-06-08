@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { usePopup } from '../context/PopupContext';
 
 interface QuickLink {
   id: string;
@@ -7,15 +8,28 @@ interface QuickLink {
   url: string;
 }
 
-export interface QuickLinksProps {
-  onAddLinkClick?: () => void;
-}
-
-export const QuickLinks: React.FC<QuickLinksProps> = ({ onAddLinkClick }) => {
+export const QuickLinks: React.FC = () => {
   const [links, setLinks] = useState<QuickLink[]>(() => {
     const savedLinks = localStorage.getItem('quick-links');
     return savedLinks ? JSON.parse(savedLinks) : [];
   });
+  
+  const { openPopup } = usePopup();
+
+  // Update links when localStorage changes
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const savedLinks = localStorage.getItem('quick-links');
+      if (savedLinks) {
+        setLinks(JSON.parse(savedLinks));
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   const getFaviconUrl = (url: string) => {
     try {
@@ -32,6 +46,10 @@ export const QuickLinks: React.FC<QuickLinksProps> = ({ onAddLinkClick }) => {
       localStorage.setItem('quick-links', JSON.stringify(updated));
       return updated;
     });
+  };
+  
+  const handleAddLinkClick = () => {
+    openPopup('addQuickLink');
   };
 
   return (
@@ -89,7 +107,7 @@ export const QuickLinks: React.FC<QuickLinksProps> = ({ onAddLinkClick }) => {
           ))}
         </AnimatePresence>
         <button
-          onClick={onAddLinkClick}
+          onClick={handleAddLinkClick}
           className="w-16 h-16 bg-gray-100 dark:bg-zinc-900 rounded-2xl flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white"
           title="Add new link"
         >

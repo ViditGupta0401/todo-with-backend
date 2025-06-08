@@ -446,7 +446,7 @@ export function TaskList({
   ];
   return (
     <div
-      className="p-3 bg-zinc-800 max-w-sm rounded-3xl shadow-2xl w-full"
+      className="p-3 bg-zinc-800  rounded-3xl shadow-2xl w-full"
       // style={{ boxShadow: "box-shadow: rgba(0, 0, 0, 0.1) 0px 10px 50px;" }}
     >
       <div className={clsx("flex items-center mb-2 justify-between z-10 top-0")}>

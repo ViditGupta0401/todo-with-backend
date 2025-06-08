@@ -1,0 +1,126 @@
+.pomodoro-widget {
+  min-height: 300px;
+  max-width: 100%;
+  background: #0a0a0a;
+  border-radius: 32px;
+  transition: max-height 0.35s cubic-bezier(.4,1.6,.6,1), padding 0.35s cubic-bezier(.4,1.6,.6,1);
+  overflow: hidden;
+}
+
+.timer-circle {
+  width: 190px;
+  height: 190px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  box-shadow: none;
+}
+
+.progress-ring__circle {
+  transition: stroke-dashoffset 0.7s cubic-bezier(.4,1.6,.6,1);
+  stroke-linecap: round;
+}
+
+.time-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+
+.session-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #222;
+  transition: background-color 0.3s;
+}
+
+.mode-label {
+  font-size: 13px;
+  font-weight: 500;
+  margin-top: 8px;
+  letter-spacing: 2px;
+}
+
+/* Settings modal backdrop */
+.modal-backdrop {
+  backdrop-filter: blur(3px);
+}
+
+/* Custom scrollbar for the settings */
+.modal-content {
+  max-height: 90vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.modal-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: #333;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background-color: #666;
+  border-radius: 20px;
+}
+
+/* Mode tabs at the top of widget */
+.mode-tabs {
+  margin-top: -0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.mode-tabs button {
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.mode-tabs button:before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform 0.3s ease;
+  z-index: -1;
+}
+
+.mode-tabs button:hover:before {
+  transform: scaleY(1);
+}
+
+/* Tab navigation buttons */
+.tab-button {
+  transition: background-color 0.2s ease;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+/* Setting controls */
+.setting-item {
+  padding: 0.5rem 0;
+}
+
+/* Animation for the plus/minus buttons */
+.setting-item button {
+  transition: transform 0.1s ease, background-color 0.2s ease;
+}
+
+.setting-item button:hover {
+  background-color: #444;
+}

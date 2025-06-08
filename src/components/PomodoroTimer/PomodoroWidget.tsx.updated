@@ -1,0 +1,575 @@
+// filepath: d:\PROJECTS\Doing the Project\todotrack\src\components\PomodoroTimer\PomodoroWidget.tsx
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faEye, faArrowRotateLeft, faGear, faXmark } from '@fortawesome/free-solid-svg-icons';
+import './PomodoroWidget.css';
+
+type TimerMode = 'focus' | 'shortBreak' | 'longBreak';
+
+interface TimerSettings {
+  focusDuration: number; // in minutes
+  shortBreakDuration: number; // in minutes
+  longBreakDuration: number; // in minutes
+  longBreakAfter: number; // sessions
+}
+
+const defaultSettings: TimerSettings = {
+  focusDuration: 25,
+  shortBreakDuration: 5,
+  longBreakDuration: 15,
+  longBreakAfter: 4,
+};
+
+const PomodoroWidget: React.FC = () => {
+  const [settings, setSettings] = useState<TimerSettings>(
+    JSON.parse(localStorage.getItem('pomodoroSettings') || JSON.stringify(defaultSettings))
+  );
+  const [mode, setMode] = useState<TimerMode>('focus');
+  const [timeLeft, setTimeLeft] = useState<number>(settings.focusDuration * 60); // in seconds
+  const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [sessionsCompleted, setSessionsCompleted] = useState<number>(0);
+  const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'duration' | 'notifications'>('duration');
+  
+  const intervalRef = useRef<number | null>(null);
+  const totalTime = useRef<number>(settings.focusDuration * 60);
+  const progressRef = useRef<SVGCircleElement>(null);
+
+  // Define constants for the progress circle early
+  const dashArray = 283; // Circumference of a circle with r=45 (2*PI*r)
+  
+  // Calculate progress percentage - defined early to avoid the initialization error
+  const calculateProgress = React.useCallback((): number => {
+    return (1 - timeLeft / totalTime.current) * 100;
+  }, [timeLeft, totalTime]);
+
+  // Initialize dashOffset using the defined function
+  const dashOffset = dashArray - (dashArray * calculateProgress()) / 100;
+  
+  // Load settings from local storage on mount
+  useEffect(() => {
+    const savedSettings = localStorage.getItem('pomodoroSettings');
+    if (savedSettings) {
+      setSettings(JSON.parse(savedSettings));
+    }
+  }, []);
+  
+  // Save settings to local storage whenever they change
+  useEffect(() => {
+    localStorage.setItem('pomodoroSettings', JSON.stringify(settings));
+    
+    // Clear any existing timer when settings change
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      setIsRunning(false);
+    }
+    
+    // Update time based on current mode and new settings
+    switch (mode) {
+      case 'focus':
+        totalTime.current = settings.focusDuration * 60;
+        setTimeLeft(settings.focusDuration * 60);
+        break;
+      case 'shortBreak':
+        totalTime.current = settings.shortBreakDuration * 60;
+        setTimeLeft(settings.shortBreakDuration * 60);
+        break;
+      case 'longBreak':
+        totalTime.current = settings.longBreakDuration * 60;
+        setTimeLeft(settings.longBreakDuration * 60);
+        break;
+    }
+  }, [settings, mode]);
+  
+  // Set up timer based on current mode
+  useEffect(() => {
+    // Update the timer when mode changes
+    const updateTimerForMode = () => {
+      switch (mode) {
+        case 'focus':
+          totalTime.current = settings.focusDuration * 60;
+          setTimeLeft(settings.focusDuration * 60);
+          break;
+        case 'shortBreak':
+          totalTime.current = settings.shortBreakDuration * 60;
+          setTimeLeft(settings.shortBreakDuration * 60);
+          break;
+        case 'longBreak':
+          totalTime.current = settings.longBreakDuration * 60;
+          setTimeLeft(settings.longBreakDuration * 60);
+          break;
+      }
+    };
+    
+    // Clear any existing interval when mode changes
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      setIsRunning(false);
+    }
+    
+    updateTimerForMode();
+  }, [mode, settings]);
+  
+  // Track progress animation smoothly - now with calculateProgress properly defined before use
+  useEffect(() => {
+    // Ensure smooth animation of the progress ring
+    if (progressRef.current) {
+      const newDashOffset = dashArray - (dashArray * calculateProgress()) / 100;
+      progressRef.current.style.strokeDashoffset = String(newDashOffset);
+    }
+  }, [timeLeft, calculateProgress, dashArray]);
+
+  // Clean up interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
+  
+  const pauseTimer = () => {
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setIsRunning(false);
+  };
+  
+  const startTimer = () => {
+    if (intervalRef.current !== null) return;
+    
+    setIsRunning(true);
+    intervalRef.current = window.setInterval(() => {
+      setTimeLeft((prevTime) => {
+        if (prevTime <= 1) {
+          handleTimerComplete();
+          return 0;
+        }
+        return prevTime - 1;
+      });
+    }, 1000);
+  };
+  
+  const resetTimer = () => {
+    pauseTimer();
+    switch (mode) {
+      case 'focus':
+        setTimeLeft(settings.focusDuration * 60);
+        break;
+      case 'shortBreak':
+        setTimeLeft(settings.shortBreakDuration * 60);
+        break;
+      case 'longBreak':
+        setTimeLeft(settings.longBreakDuration * 60);
+        break;
+    }
+  };
+  
+  const handleTimerComplete = () => {
+    pauseTimer();
+    playAlertSound();
+    
+    // Logic for switching modes
+    if (mode === 'focus') {
+      const newSessionsCompleted = sessionsCompleted + 1;
+      setSessionsCompleted(newSessionsCompleted);
+      
+      // After configured number of focus sessions, take a long break
+      if (newSessionsCompleted % settings.longBreakAfter === 0) {
+        setMode('longBreak');
+      } else {
+        setMode('shortBreak');
+      }
+    } else {
+      // After any break, go back to focus mode
+      setMode('focus');
+    }
+  };
+  
+  const playAlertSound = () => {
+    // Create audio programmatically using Web Audio API instead of relying on an external file
+    try {
+      // Create oscillator for a simple beep sound
+      const beep = (frequency: number, duration: number, volume: number, type: OscillatorType) => {
+        // @ts-expect-error - TypeScript doesn't recognize webkitAudioContext
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        gainNode.gain.value = volume;
+        oscillator.frequency.value = frequency;
+        oscillator.type = type;
+        
+        oscillator.start(audioCtx.currentTime);
+        oscillator.stop(audioCtx.currentTime + duration);
+      };
+      
+      // Play a beep sound
+      beep(800, 0.3, 0.5, 'sine');
+      setTimeout(() => beep(700, 0.2, 0.5, 'sine'), 300);
+    } catch (e) {
+      console.log('Audio error:', e);
+    }
+  };
+  
+  const toggleStartPause = () => {
+    if (isRunning) {
+      pauseTimer();
+    } else {
+      startTimer();
+    }
+  };
+
+  // Format time as MM:SS
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Get color based on current mode
+  const getModeColor = (): string => {
+    switch (mode) {
+      case 'focus':
+        return '#ff4101';
+      case 'shortBreak':
+        return '#00a8cc';
+      case 'longBreak':
+        return '#46cb3a';
+      default:
+        return '#ff4101';
+    }
+  };
+
+  // Get mode label
+  const getModeLabel = (): string => {
+    switch (mode) {
+      case 'focus':
+        return 'FOCUS';
+      case 'shortBreak':
+        return 'SHORT BREAK';
+      case 'longBreak':
+        return 'LONG BREAK';
+    }
+  };
+
+  // Handle settings changes
+  const updateSetting = (key: keyof TimerSettings, value: number) => {
+    setSettings({ ...settings, [key]: value });
+  };
+  
+  // Get background gradient based on current mode
+  const getModeGradient = (): string => {
+    switch (mode) {
+      case 'focus':
+        return 'bg-gradient-to-br from-black to-[#300a01]';
+      case 'shortBreak':
+        return 'bg-gradient-to-br from-black to-[#00394a]';
+      case 'longBreak':
+        return 'bg-gradient-to-br from-black to-[#0a3000]';
+      default:
+        return 'bg-black';
+    }
+  };
+  
+  return (
+    <div className={`pomodoro-widget ${getModeGradient()} rounded-3xl p-6 text-white flex flex-col items-center relative overflow-hidden transition-colors duration-700`}>
+      {/* Mode selection tabs */}
+      <div className="mode-tabs w-full flex justify-center mb-6">
+        <div className="bg-[#222] p-1 rounded-full flex w-full max-w-[280px] shadow-inner shadow-black/50">
+          <button 
+            onClick={() => setMode('focus')}
+            className={`flex-1 py-2 px-3 rounded-full text-xs font-medium transition-all ${
+              mode === 'focus' 
+                ? 'bg-[#ff4101] text-white shadow-md' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            FOCUS
+          </button>
+          <button 
+            onClick={() => setMode('shortBreak')}
+            className={`flex-1 py-2 px-3 rounded-full text-xs font-medium transition-all ${
+              mode === 'shortBreak' 
+                ? 'bg-[#00a8cc] text-white shadow-md' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            SHORT BREAK
+          </button>
+          <button 
+            onClick={() => setMode('longBreak')}
+            className={`flex-1 py-2 px-3 rounded-full text-xs font-medium transition-all ${
+              mode === 'longBreak' 
+                ? 'bg-[#46cb3a] text-white shadow-md' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            LONG BREAK
+          </button>
+        </div>
+      </div>
+      
+      <div className="timer-container relative flex flex-col items-center justify-center mb-4">
+        {/* Eye icon */}
+        <FontAwesomeIcon icon={faEye} className="text-white text-sm mb-2" />
+        
+        {/* Timer circle */}
+        <div 
+          className="timer-circle relative flex items-center justify-center"
+          style={{ 
+            filter: isRunning ? `drop-shadow(0 0 2px ${getModeColor()}90)` : undefined
+          }}
+        >
+          <svg className="progress-ring" width="190" height="190" viewBox="0 0 100 100">
+            {/* Background circle */}
+            <circle
+              className="progress-ring__circle-bg"
+              stroke="#444"
+              strokeWidth="4"
+              fill="transparent"
+              r="45"
+              cx="50"
+              cy="50"
+            />
+            {/* Progress circle */}
+            <circle
+              ref={progressRef}
+              className="progress-ring__circle"
+              stroke={getModeColor()}
+              strokeWidth="4"
+              strokeDasharray={dashArray}
+              strokeDashoffset={dashOffset}
+              fill="transparent"
+              r="45"
+              cx="50"
+              cy="50"
+              transform="rotate(-90 50 50)"
+            />
+          </svg>
+          
+          {/* Time display */}
+          <div className="time-display absolute text-white flex flex-col items-center">
+            <h1 className="text-5xl font-bold tracking-wide drop-shadow-md">{formatTime(timeLeft)}</h1>
+          </div>
+        </div>
+        
+        {/* Mode label */}
+        <div className="mode-label text-xs tracking-wider mt-3 font-medium" style={{ color: getModeColor() }}>
+          {getModeLabel()}
+        </div>
+        
+        {/* Session indicators */}
+        <div className="session-indicators flex space-x-1.5 mt-2">
+          {[...Array(settings.longBreakAfter)].map((_, i) => (
+            <div
+              key={i}
+              className={`session-indicator w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
+                i < sessionsCompleted % settings.longBreakAfter
+                  ? ''  // Use style for color instead of className
+                  : 'bg-gray-600'
+              }`}
+              style={{
+                backgroundColor: i < sessionsCompleted % settings.longBreakAfter ? getModeColor() : undefined
+              }}
+            />
+          ))}
+        </div>
+      </div>
+      
+      {/* Controls */}
+      <div className="controls flex items-center">
+        {/* Reset button */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          className="reset-button h-10 w-10 rounded-full flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] transition-colors mr-4 shadow-inner shadow-black/50"
+          onClick={resetTimer}
+          title="Reset Timer"
+        >
+          <FontAwesomeIcon icon={faArrowRotateLeft} className="opacity-80" />
+        </motion.button>
+        
+        {/* Start/Pause button */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          style={{ backgroundColor: `${getModeColor()}33`, color: getModeColor() }}
+          className="start-pause-button h-12 w-32 rounded-full font-medium transition-all duration-300 shadow-md"
+          onClick={toggleStartPause}
+        >
+          {isRunning ? 'PAUSE' : 'START'}
+        </motion.button>
+        
+        {/* Settings button */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          className="settings-button h-10 w-10 rounded-full flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] transition-colors ml-4 shadow-inner shadow-black/50"
+          onClick={() => setShowSettings(true)}
+          title="Timer Settings"
+        >
+          <FontAwesomeIcon icon={faGear} className="opacity-80" />
+        </motion.button>
+      </div>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="settings-modal fixed inset-0 z-50 flex items-center justify-center p-4"
+          >
+            <div className="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onClick={() => setShowSettings(false)} />
+            
+            <motion.div 
+              className="modal-content bg-black rounded-3xl p-6 w-[300px] relative z-10"
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+            >
+              {/* Modal header */}
+              <div className="modal-header flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold text-white">Settings</h2>
+                <button 
+                  className="close-button text-gray-400 hover:text-white"
+                  onClick={() => setShowSettings(false)}
+                >
+                  <FontAwesomeIcon icon={faXmark} />
+                </button>
+              </div>
+              
+              {/* Tab navigation */}
+              <div className="tab-navigation flex mb-6">
+                <button 
+                  className={`tab-button py-2 px-4 rounded-full flex-1 ${activeTab === 'duration' ? 'bg-[#333]' : ''}`}
+                  onClick={() => setActiveTab('duration')}
+                >
+                  DURATION
+                </button>
+                <button 
+                  className={`tab-button py-2 px-4 rounded-full flex-1 ${activeTab === 'notifications' ? 'bg-[#333]' : ''}`}
+                  onClick={() => setActiveTab('notifications')}
+                >
+                  NOTIFICATIONS
+                </button>
+              </div>
+              
+              {/* Tab content */}
+              <div className="tab-content">
+                {activeTab === 'duration' && (
+                  <div className="duration-settings">
+                    {/* Focus duration */}
+                    <div className="setting-item flex justify-between items-center mb-4">
+                      <span className="text-gray-300">Focus Session</span>
+                      <div className="flex items-center">
+                        <span className="w-10 text-right">{settings.focusDuration}</span>
+                        <span className="text-gray-500 ml-1">min</span>
+                        <motion.button 
+                          whileTap={{ scale: 0.9 }}
+                          className="ml-4 h-8 w-8 rounded-full bg-[#333] flex items-center justify-center"
+                          onClick={() => updateSetting('focusDuration', Math.max(1, settings.focusDuration - 1))}
+                        >
+                          -
+                        </motion.button>
+                        <motion.button 
+                          whileTap={{ scale: 0.9 }}
+                          className="ml-2 h-8 w-8 rounded-full bg-[#333] flex items-center justify-center"
+                          onClick={() => updateSetting('focusDuration', settings.focusDuration + 1)}
+                        >
+                          +
+                        </motion.button>
+                      </div>
+                    </div>
+                    
+                    {/* Short break duration */}
+                    <div className="setting-item flex justify-between items-center mb-4">
+                      <span className="text-gray-300">Short break</span>
+                      <div className="flex items-center">
+                        <span className="w-10 text-right">{settings.shortBreakDuration}</span>
+                        <span className="text-gray-500 ml-1">min</span>
+                        <motion.button 
+                          whileTap={{ scale: 0.9 }}
+                          className="ml-4 h-8 w-8 rounded-full bg-[#333] flex items-center justify-center"
+                          onClick={() => updateSetting('shortBreakDuration', Math.max(1, settings.shortBreakDuration - 1))}
+                        >
+                          -
+                        </motion.button>
+                        <motion.button 
+                          whileTap={{ scale: 0.9 }}
+                          className="ml-2 h-8 w-8 rounded-full bg-[#333] flex items-center justify-center"
+                          onClick={() => updateSetting('shortBreakDuration', settings.shortBreakDuration + 1)}
+                        >
+                          +
+                        </motion.button>
+                      </div>
+                    </div>
+                    
+                    {/* Long break duration */}
+                    <div className="setting-item flex justify-between items-center mb-4">
+                      <span className="text-gray-300">Long break</span>
+                      <div className="flex items-center">
+                        <span className="w-10 text-right">{settings.longBreakDuration}</span>
+                        <span className="text-gray-500 ml-1">min</span>
+                        <motion.button 
+                          whileTap={{ scale: 0.9 }}
+                          className="ml-4 h-8 w-8 rounded-full bg-[#333] flex items-center justify-center"
+                          onClick={() => updateSetting('longBreakDuration', Math.max(1, settings.longBreakDuration - 1))}
+                        >
+                          -
+                        </motion.button>
+                        <motion.button 
+                          whileTap={{ scale: 0.9 }}
+                          className="ml-2 h-8 w-8 rounded-full bg-[#333] flex items-center justify-center"
+                          onClick={() => updateSetting('longBreakDuration', settings.longBreakDuration + 1)}
+                        >
+                          +
+                        </motion.button>
+                      </div>
+                    </div>
+                    
+                    {/* Long break after */}
+                    <div className="setting-item flex justify-between items-center">
+                      <span className="text-gray-300">Long break after</span>
+                      <div className="flex items-center">
+                        <span className="w-10 text-right">{settings.longBreakAfter}</span>
+                        <span className="text-gray-500 ml-1">sess.</span>
+                        <motion.button 
+                          whileTap={{ scale: 0.9 }}
+                          className="ml-4 h-8 w-8 rounded-full bg-[#333] flex items-center justify-center"
+                          onClick={() => updateSetting('longBreakAfter', Math.max(1, settings.longBreakAfter - 1))}
+                        >
+                          -
+                        </motion.button>
+                        <motion.button 
+                          whileTap={{ scale: 0.9 }}
+                          className="ml-2 h-8 w-8 rounded-full bg-[#333] flex items-center justify-center"
+                          onClick={() => updateSetting('longBreakAfter', settings.longBreakAfter + 1)}
+                        >
+                          +
+                        </motion.button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {activeTab === 'notifications' && (
+                  <div className="notification-settings p-4">
+                    <p className="text-gray-300 text-center">Notification settings coming soon</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export default PomodoroWidget;

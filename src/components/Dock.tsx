@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   FiSettings, 
   FiCheck,
@@ -15,19 +15,36 @@ const Dock: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const [showSettings, setShowSettings] = useState(false);
   const [activeIcon, setActiveIcon] = useState<string | null>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const handleEditLayoutToggle = () => {
     setIsEditingLayout(!isEditingLayout);
     setShowSettings(false);
   };
 
-  const handleSettingsClick = () => {
-    setActiveIcon(activeIcon === 'settings' ? null : 'settings');
-    setShowSettings(!showSettings);
+  const handleIconHover = (icon: string | null) => {
+    setActiveIcon(icon);
+    if (icon === 'settings') {
+      setShowSettings(true);
+    } else {
+      setShowSettings(false);
+    }
   };
-    // Placeholder for future hover animations
-  const handleIconHover = () => {
-    // This could be expanded later for hover animations
+
+  // Handle mouse leave specifically for the settings button
+  const handleButtonMouseLeave = (e: React.MouseEvent) => {
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    const settingsElement = settingsRef.current;
+
+    // If mouse leaves the button and does not enter the settings popup, hide.
+    // We use a small timeout to allow for cursor movement between the button and the popup.
+    setTimeout(() => {
+      if (settingsElement && !settingsElement.contains(relatedTarget)) {
+        setShowSettings(false);
+        setActiveIcon(null);
+      }
+    }, 100); // Small delay to prevent flickering
   };
 
   return (
@@ -36,13 +53,18 @@ const Dock: React.FC = () => {
       {showSettings && (
         <div
           className="fixed inset-0 z-[100] flex items-end justify-end"
-          onClick={() => setShowSettings(false)}
+          onClick={() => {
+            setShowSettings(false);
+            setActiveIcon(null);
+          }} // Click anywhere on backdrop to hide
+          style={{ pointerEvents: 'auto' }} // Ensure backdrop captures clicks
         >
           <div
+            ref={settingsRef}
             className="absolute bottom-16 right-6 min-w-[200px]"
             tabIndex={-1}
-            onClick={e => e.stopPropagation()}
-            style={{ zIndex: 101, pointerEvents: 'auto' }}
+            onClick={e => e.stopPropagation()} // Stop propagation so backdrop's click doesn't hide
+            style={{ zIndex: 101 }}
           >
             <div
               className="bg-white/90 dark:bg-zinc-800/90 backdrop-blur-md rounded-xl shadow-2xl p-4 border border-gray-200 dark:border-gray-700 transition-all duration-300 animate-settings-fade-in"
@@ -69,7 +91,6 @@ const Dock: React.FC = () => {
                         ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' 
                         : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                     } hidden`}
-                    // Hide the icon button
                   >
                     {isEditingLayout ? <FiCheck size={18} /> : <FiEdit size={18} />}
                   </button>
@@ -90,9 +111,11 @@ const Dock: React.FC = () => {
       {/* Main dock - Magic UI style */}
       <div className="flex items-center backdrop-blur-lg bg-white/75 dark:bg-zinc-800/80 rounded-2xl shadow-xl p-1.5 border border-white/20 dark:border-zinc-700/50">
         <div className="flex gap-1">
-          {/* Settings Button */}          <button 
-            onClick={handleSettingsClick}
-            onMouseEnter={handleIconHover}
+          {/* Settings Button */}
+          <button 
+            ref={buttonRef}
+            onMouseEnter={() => handleIconHover('settings')}
+            onMouseLeave={handleButtonMouseLeave}
             className={`group relative flex items-center justify-center h-12 w-12 rounded-xl transition-all duration-300 ${
               activeIcon === 'settings' || showSettings
                 ? 'bg-gradient-to-b from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 text-blue-600 dark:text-blue-400 scale-100'
@@ -116,7 +139,8 @@ const Dock: React.FC = () => {
           <div className="flex items-center">
             <button
               onClick={() => setShowWidgetSelector(true)}
-              onMouseEnter={handleIconHover}
+              onMouseEnter={() => handleIconHover('widget')}
+              onMouseLeave={() => handleIconHover(null)}
               className="group relative flex items-center justify-center h-12 w-12 rounded-xl text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100/80 dark:hover:bg-zinc-700/50 hover:scale-[1.03] transition-all duration-300"
             >
               <FiPlus size={22} />
