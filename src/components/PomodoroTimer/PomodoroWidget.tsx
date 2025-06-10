@@ -2,78 +2,104 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowRotateLeft, faGear } from '@fortawesome/free-solid-svg-icons';
-import './PomodoroWidget.css';
-import alarmAudioWakeUp from './alarm_wake_up.mp3';
-import alarmAudioMorning from './morning_flower.mp3';
 import { usePopup } from '../../context/PopupContext';
-import { usePomodoroSettings, PomodoroSettings } from '../../context/PomodoroSettingsContext';
-
-declare global {
-  interface Window {
-    __pomodoroNotification?: Notification | null;
-  }
-}
+import './PomodoroWidget.css';
 
 type TimerMode = 'focus' | 'shortBreak' | 'longBreak';
 
-// Helper function to calculate time based on mode and settings
-const calculateTimeForMode = (mode: TimerMode, settings: PomodoroSettings): number => {
-  switch (mode) {
-    case 'focus':
-      return settings.focusDuration * 60;
-    case 'shortBreak':
-      return settings.shortBreakDuration * 60;
-    case 'longBreak':
-      return settings.longBreakDuration * 60;
-    default:
-      return 0; // Should not happen
-  }
+interface TimerSettings {
+  focusDuration: number; // in minutes
+  shortBreakDuration: number; // in minutes
+  longBreakDuration: number; // in minutes
+  longBreakAfter: number; // sessions
+  alarmSound?: string; // oscillator type: 'triangle', 'sine', 'square', 'sawtooth'
+  alarmVolume?: number; // volume between 0 and 1
+}
+
+const defaultSettings: TimerSettings = {
+  focusDuration: 25,
+  shortBreakDuration: 5,
+  longBreakDuration: 15,
+  longBreakAfter: 4,
+  alarmSound: 'triangle',
+  alarmVolume: 0.3
 };
 
 const PomodoroWidget: React.FC = () => {
-  const { settings, updateSetting } = usePomodoroSettings();
+  const { openPopup } = usePopup();
+  const [settings, setSettings] = useState<TimerSettings>(
+    JSON.parse(localStorage.getItem('pomodoroSettings') || JSON.stringify(defaultSettings))
+  );
   const [mode, setMode] = useState<TimerMode>('focus');
-  const [timeLeft, setTimeLeft] = useState<number>(() => calculateTimeForMode('focus', settings)); // Initialize with calculated time
+  const [timeLeft, setTimeLeft] = useState<number>(settings.focusDuration * 60); // in seconds
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [sessionsCompleted, setSessionsCompleted] = useState<number>(0);
-  const [isAlarmRinging, setIsAlarmRinging] = useState(false);
-  const [maxHeight, setMaxHeight] = useState(380); // default height
-  const widgetRef = useRef<HTMLDivElement>(null);
   
   const intervalRef = useRef<number | null>(null);
-  const totalTime = useRef<number>(calculateTimeForMode('focus', settings)); // Initialize with calculated time
-  const { openPopup } = usePopup();
+  const totalTime = useRef<number>(settings.focusDuration * 60);
 
   // Load settings from local storage on mount
   useEffect(() => {
     const savedSettings = localStorage.getItem('pomodoroSettings');
     if (savedSettings) {
-      const parsedSettings = JSON.parse(savedSettings);
-      updateSetting('focusDuration', parsedSettings.focusDuration);
-      updateSetting('shortBreakDuration', parsedSettings.shortBreakDuration);
-      updateSetting('longBreakDuration', parsedSettings.longBreakDuration);
-      updateSetting('longBreakAfter', parsedSettings.longBreakAfter);
-      updateSetting('alarmSound', parsedSettings.alarmSound);
-      updateSetting('alarmVolume', parsedSettings.alarmVolume);
-      updateSetting('alarmAudio', parsedSettings.alarmAudio);
+      setSettings(JSON.parse(savedSettings));
     }
-  }, [updateSetting]);
-
-  // This useEffect will update timeLeft and totalTime.current whenever mode or settings change.
-  // It specifically avoids resetting the timer if it's already running.
-  useEffect(() => {
-    if (!isRunning) { // Only update if timer is not running
-      const newTime = calculateTimeForMode(mode, settings);
-      setTimeLeft(newTime);
-      totalTime.current = newTime;
-    }
-  }, [mode, settings, isRunning]); // isRunning is a dependency to re-evaluate when timer stops
-
-  // Save settings to local storage whenever they change
+  }, []);  // Save settings to local storage whenever they change
   useEffect(() => {
     localStorage.setItem('pomodoroSettings', JSON.stringify(settings));
-  }, [settings]);
-
+    
+    // Clear any existing timer when settings change
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      setIsRunning(false);
+    }
+    
+    // Update time based on current mode and new settings
+    switch (mode) {
+      case 'focus':
+        totalTime.current = settings.focusDuration * 60;
+        setTimeLeft(settings.focusDuration * 60);
+        break;
+      case 'shortBreak':
+        totalTime.current = settings.shortBreakDuration * 60;
+        setTimeLeft(settings.shortBreakDuration * 60);
+        break;
+      case 'longBreak':
+        totalTime.current = settings.longBreakDuration * 60;
+        setTimeLeft(settings.longBreakDuration * 60);
+        break;
+    }
+  }, [settings, mode]);
+  // Set up timer based on current mode
+  useEffect(() => {
+    // Update the timer when mode changes
+    const updateTimerForMode = () => {
+      switch (mode) {
+        case 'focus':
+          totalTime.current = settings.focusDuration * 60;
+          setTimeLeft(settings.focusDuration * 60);
+          break;
+        case 'shortBreak':
+          totalTime.current = settings.shortBreakDuration * 60;
+          setTimeLeft(settings.shortBreakDuration * 60);
+          break;
+        case 'longBreak':
+          totalTime.current = settings.longBreakDuration * 60;
+          setTimeLeft(settings.longBreakDuration * 60);
+          break;
+      }
+    };
+    
+    // Clear any existing interval when mode changes
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      setIsRunning(false);
+    }
+    
+    updateTimerForMode();
+  }, [mode, settings]);
+  
   useEffect(() => {
     // Clean up interval on unmount
     return () => {
@@ -81,36 +107,15 @@ const PomodoroWidget: React.FC = () => {
         window.clearInterval(intervalRef.current);
       }
     };
-  }, []);
-
-  useEffect(() => {
-    // Update maxHeight when alarm state changes (or other content changes)
-    if (widgetRef.current) {
-      setMaxHeight(widgetRef.current.scrollHeight);
-    }
-  }, [isAlarmRinging, timeLeft, mode, settings]);
-
-  const pauseTimer = () => {
+  }, []);  const pauseTimer = () => {
     if (intervalRef.current !== null) {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
     setIsRunning(false);
-  };
-
-  const startTimer = () => {
-    if (intervalRef.current !== null) { // If timer is already running, do nothing
-      return;
-    }
+  };const startTimer = () => {
+    if (intervalRef.current !== null) return;
     
-    // Explicitly set totalTime.current and timeLeft when starting, only if time needs to be reset
-    // This handles cases where timer is paused, completed (timeLeft === 0), or mode just switched
-    if (timeLeft === 0 || !isRunning) { 
-        const initialTime = calculateTimeForMode(mode, settings);
-        totalTime.current = initialTime;
-        setTimeLeft(initialTime);
-    }
-
     setIsRunning(true);
     intervalRef.current = window.setInterval(() => {
       setTimeLeft((prevTime) => {
@@ -121,16 +126,20 @@ const PomodoroWidget: React.FC = () => {
         return prevTime - 1;
       });
     }, 1000);
-  };
-  
-  const resetTimer = () => {
+  };  const resetTimer = () => {
     pauseTimer();
-    const resetTime = calculateTimeForMode(mode, settings);
-    setTimeLeft(resetTime);
-    totalTime.current = resetTime; // Ensure totalTime is updated consistently after reset
-  };
-  
-  const handleTimerComplete = () => {
+    switch (mode) {
+      case 'focus':
+        setTimeLeft(settings.focusDuration * 60);
+        break;
+      case 'shortBreak':
+        setTimeLeft(settings.shortBreakDuration * 60);
+        break;
+      case 'longBreak':
+        setTimeLeft(settings.longBreakDuration * 60);
+        break;
+    }
+  };  const handleTimerComplete = () => {
     pauseTimer();
     playAlertSound();
     
@@ -149,55 +158,79 @@ const PomodoroWidget: React.FC = () => {
       // After any break, go back to focus mode
       setMode('focus');
     }
-    // The useEffect [mode, settings, isRunning] will now handle updating timeLeft and totalTime.current
-    // to the new mode's duration, effectively resetting the progress bar.
-  };
-  
-  // Store audio element reference for stopping the alarm
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  };  // Store audio context reference for stopping the alarm
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const oscillatorRef = useRef<OscillatorNode | null>(null);
   const alarmTimeoutRef = useRef<number | null>(null);
 
   const playAlertSound = () => {
+    // Create audio programmatically using Web Audio API
     try {
+      // Clear any existing alarm
       stopAlarmSound();
-      setIsAlarmRinging(true);
+      
+      // Request notification permission
       if (Notification && Notification.permission !== "granted" && Notification.permission !== "denied") {
         Notification.requestPermission();
       }
-      // Select audio file based on settings
-      let audioFile = alarmAudioWakeUp;
-      if (settings.alarmAudio === 'morning_flower') {
-        audioFile = alarmAudioMorning;
-      }
-      // Create and play audio
-      const audio = new Audio(audioFile);
-      audio.volume = settings.alarmVolume ?? 0.3;
-      audioRef.current = audio;
-      audio.loop = true; // Loop until stopped
-      audio.play();
-      // Show notification only once
-      showNotification();
+      
+      // Create a continuous alarm sound that will run for 15 seconds
+      // @ts-expect-error - TypeScript doesn't recognize webkitAudioContext
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = audioCtx;
+      
+      // Create oscillator for alarm sound
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+        // Set up parameters based on user settings
+      const volume = settings.alarmVolume ?? 0.3; // Default to 0.3 if not set
+      const soundType = settings.alarmSound ?? 'triangle'; // Default to 'triangle' if not set
+      
+      gainNode.gain.value = volume;
+      oscillator.frequency.value = 800;
+      oscillator.type = soundType as OscillatorType;
+      
+      // Store reference to oscillator for stopping it later
+      oscillatorRef.current = oscillator;
+      
+      // Start alarm sound
+      oscillator.start();
+      
+      // Create notification after a short delay to ensure sound starts playing
+      setTimeout(() => {
+        showNotification();
+      }, 500);
+      
+      // Set timeout to stop the alarm after 15 seconds
+      alarmTimeoutRef.current = window.setTimeout(() => {
+        stopAlarmSound();
+      }, 15000);
     } catch (e) {
       console.log('Audio error:', e);
     }
   };
   
   const stopAlarmSound = () => {
-    setIsAlarmRinging(false);
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current = null;
+    // Stop any existing oscillator
+    if (oscillatorRef.current) {
+      oscillatorRef.current.stop();
+      oscillatorRef.current.disconnect();
+      oscillatorRef.current = null;
     }
+    
+    // Close audio context
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    
+    // Clear any existing timeout
     if (alarmTimeoutRef.current) {
       window.clearTimeout(alarmTimeoutRef.current);
       alarmTimeoutRef.current = null;
-    }
-    // Close any open notification if possible
-    const win = window as Window & { __pomodoroNotification?: Notification | null };
-    if (win.__pomodoroNotification) {
-      win.__pomodoroNotification.close();
-      win.__pomodoroNotification = null;
     }
   };
   
@@ -207,39 +240,37 @@ const PomodoroWidget: React.FC = () => {
       console.log("This browser does not support notifications");
       return;
     }
+    
     if (Notification.permission === "granted") {
       const title = mode === 'focus' ? 'Focus Session Complete!' : 'Break Time Over!';
       const body = mode === 'focus' ? 'Time to take a break!' : 'Time to focus again!';
+      
       const notification = new Notification(title, {
         body: body,
         icon: '/favicon.ico',
         requireInteraction: true // Notification persists until user interacts with it
       });
-      // Store reference globally to close later
-      const win = window as Window & { __pomodoroNotification?: Notification | null };
-      win.__pomodoroNotification = notification;
+      
       // Stop alarm when notification is clicked
       notification.onclick = () => {
         stopAlarmSound();
         notification.close();
-        win.__pomodoroNotification = null;
       };
-    } else if (Notification.permission === "default") {
-      Notification.requestPermission();
-      // Do NOT show notification now; wait for next timer event
+    } else if (Notification.permission !== "denied") {
+      // We need to ask the user for permission
+      Notification.requestPermission().then((permission) => {
+        if (permission === "granted") {
+          showNotification();
+        }
+      });
     }
-    // If denied, do nothing
-  };
-
-  const toggleStartPause = () => {
+  };const toggleStartPause = () => {
     if (isRunning) {
       pauseTimer();
     } else {
       startTimer();
     }
-  };
-  
-  // Format time as MM:SS
+  };  // Format time as MM:SS
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -259,23 +290,14 @@ const PomodoroWidget: React.FC = () => {
         return '#ff4101';
     }
   };
+  // Handle settings changes
+  const updateSetting = (key: keyof TimerSettings, value: number | string) => {
+    setSettings({ ...settings, [key]: value });
+  };
   
   return (
     <>
-      <div
-        ref={widgetRef}
-        className={"pomodoro-widget shadow-xl  rounded-3xl p-6 text-white flex flex-col items-center relative overflow-hidden bg-zinc-800 transition-colors duration-700"}
-        style={{ maxHeight }}
-      >
-        {/* Stop Alarm button */}
-        {isAlarmRinging && (
-          <button
-            className="mb-4 px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full shadow-lg text-lg animate-pulse z-10"
-            onClick={stopAlarmSound}
-          >
-            Stop Alarm
-          </button>
-        )}
+      <div className={"pomodoro-widget shadow-xl  rounded-3xl p-6 text-white flex flex-col items-center relative overflow-hidden bg-zinc-800 transition-colors duration-700"} >
         {/* Mode selection tabs */}
         <div className="mode-tabs w-full flex justify-center mb-6">
           <div className="bg-[#18181C] p-1 rounded-full flex w-full max-w-[150px] ">
@@ -398,7 +420,10 @@ const PomodoroWidget: React.FC = () => {
           <motion.button
             whileTap={{ scale: 0.95 }}
             className="settings-button h-10 w-10 rounded-full flex items-center justify-center bg-[#1a1a1a] hover:bg-[#333] transition-colors ml-4 "
-            onClick={() => openPopup('pomodoroSettings', { settings, onUpdateSetting: updateSetting })}
+            onClick={() => openPopup('pomodoroSettings', { 
+              settings, 
+              onUpdateSetting: updateSetting 
+            })}
             title="Timer Settings"
           >
             <FontAwesomeIcon icon={faGear} className="opacity-80" />

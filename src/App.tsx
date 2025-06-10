@@ -20,6 +20,7 @@ import { faDumbbell } from '@fortawesome/free-solid-svg-icons';
 import ClockWidget from './components/ClockWidget';
 import UpcomingEventsWidget from './components/UpcomingEventsWidget';
 import { migrateWidgetLayouts, migrateTasks, ensureValidWidgetLayouts } from './utils/migration';
+import LeetCodeWidget from './components/LeetCodeWidget';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
@@ -745,6 +746,13 @@ function App() {
       y: 1,
       w: 1,
       content: <PomodoroWidget />
+    },
+    leetcode: {
+      i: 'leetcode',
+      x: 0, // You can adjust the position as needed
+      y: 2,
+      w: 2, // You can adjust the width as needed
+      content: <LeetCodeWidget />
     }
   };
 

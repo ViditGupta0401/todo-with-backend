@@ -2,17 +2,14 @@ import React, { useState, useRef } from 'react';
 import { 
   FiSettings, 
   FiCheck,
-  FiEdit,
-  FiLayout,
-  FiPlus,
-  FiGrid
+  FiEdit
 } from 'react-icons/fi';
 import { useTheme } from '../context/ThemeContext';
 import { useWidgetContext } from '../context/WidgetContext';
 
 const Dock: React.FC = () => {
-  const { isEditingLayout, setIsEditingLayout, showWidgetSelector, setShowWidgetSelector } = useWidgetContext();
-  const { theme, toggleTheme } = useTheme();
+  const { isEditingLayout, setIsEditingLayout, setShowWidgetSelector } = useWidgetContext();
+  const { theme } = useTheme();
   const [showSettings, setShowSettings] = useState(false);
   const [activeIcon, setActiveIcon] = useState<string | null>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -99,7 +96,7 @@ const Dock: React.FC = () => {
                 <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500 dark:text-gray-400">TodoTrack</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">v1.2.0</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">v1.8.0</span>
                   </div>
                 </div>
               </div>
@@ -109,8 +106,32 @@ const Dock: React.FC = () => {
       )}
 
       {/* Main dock - Magic UI style */}
-      <div className="flex items-center backdrop-blur-lg bg-white/75 dark:bg-zinc-800/80 rounded-2xl shadow-xl p-1.5 border border-white/20 dark:border-zinc-700/50">
-        <div className="flex gap-1">
+      <div className="flex items-center backdrop-blur-lg bg-white/75 dark:bg-zinc-800/80 rounded-2xl shadow-xl p-1.5 border border-white/20 dark:border-zinc-700/50">      <div className="flex gap-1">
+        {/* Widget+ Button */}
+          <div className="flex items-center">
+            <button
+              onClick={() => setShowWidgetSelector(true)}
+              onMouseEnter={() => handleIconHover('widget')}
+              onMouseLeave={() => handleIconHover(null)}
+              className="group relative flex items-center justify-center h-12 w-12 rounded-xl text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100/80 dark:hover:bg-zinc-700/50 hover:scale-[1.03] transition-all duration-300"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-current">
+                <path d="M20.5 16.75h-2.25V14.5c0-.41-.34-.75-.75-.75s-.75.34-.75.75v2.25H14.5c-.41 0-.75.34-.75.75s.34.75.75.75h2.25v2.25c0 .41.34.75.75.75s.75-.34.75-.75v-2.25h2.25c.41 0 .75-.34.75-.75s-.34-.75-.75-.75Z" fill="currentColor"/>
+                <path opacity=".4" d="M22 8.52V3.98C22 2.57 21.36 2 19.77 2h-4.04c-1.59 0-2.23.57-2.23 1.98v4.53c0 1.42.64 1.98 2.23 1.98h4.04c1.59.01 2.23-.56 2.23-1.97Z" fill="currentColor"/>
+                <path d="M10.5 8.52V3.98C10.5 2.57 9.86 2 8.27 2H4.23C2.64 2 2 2.57 2 3.98v4.53c0 1.42.64 1.98 2.23 1.98h4.04c1.59.01 2.23-.56 2.23-1.97Z" fill="currentColor"/>
+                <path opacity=".4" d="M10.5 19.77v-4.04c0-1.59-.64-2.23-2.23-2.23H4.23c-1.59 0-2.23.64-2.23 2.23v4.04C2 21.36 2.64 22 4.23 22h4.04c1.59 0 2.23-.64 2.23-2.23Z" fill="currentColor"/>
+              </svg>
+              <span className={`absolute -top-8 text-xs font-medium px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity
+                ${theme === 'dark' ? 'bg-zinc-800 text-zinc-100' : 'bg-white text-zinc-900 border border-zinc-200 shadow'}
+              `}>
+                Add Widget
+              </span>
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="w-px h-8 self-center bg-gray-200 dark:bg-gray-700 mx-1"></div>
+          
           {/* Settings Button */}
           <button 
             ref={buttonRef}
@@ -131,26 +152,6 @@ const Dock: React.FC = () => {
               </span>
             )}
           </button>
-
-          {/* Divider */}
-          <div className="w-px h-8 self-center bg-gray-200 dark:bg-gray-700 mx-1"></div>
-          
-          {/* Widget+ Button */}
-          <div className="flex items-center">
-            <button
-              onClick={() => setShowWidgetSelector(true)}
-              onMouseEnter={() => handleIconHover('widget')}
-              onMouseLeave={() => handleIconHover(null)}
-              className="group relative flex items-center justify-center h-12 w-12 rounded-xl text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100/80 dark:hover:bg-zinc-700/50 hover:scale-[1.03] transition-all duration-300"
-            >
-              <FiPlus size={22} />
-              <span className={`absolute -top-8 text-xs font-medium px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity
-                ${theme === 'dark' ? 'bg-zinc-800 text-zinc-100' : 'bg-white text-zinc-900 border border-zinc-200 shadow'}
-              `}>
-                Add Widget
-              </span>
-            </button>
-          </div>
         </div>
       </div>
       
