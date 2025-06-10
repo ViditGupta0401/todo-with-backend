@@ -459,10 +459,16 @@ const LeetCodeWidget: React.FC = () => {
     const day = addDays(startOfCurrentWeek, dayIndex);
     const dayStr = format(day, 'yyyy-MM-dd');
     const dataForDay = dailyData.find(d => d.date === dayStr);
+    const today = new Date();
     
     if (dataForDay?.isStreakDay) {
       return 'completed';
     } 
+    
+    // Check if this is a past day (before today)
+    if (day < today) {
+      return 'past-not-completed';
+    }
     
     return 'not-completed';
   }, [dailyData, startOfCurrentWeek]);
@@ -561,7 +567,7 @@ const LeetCodeWidget: React.FC = () => {
             {/* Week Tracker */}
             <div className=" flex ">
               <LeetCodeStreakBar
-                streakDays={daysOfWeek.map((_, idx) => getDayStatus(idx) === 'completed')}
+                streakDays={daysOfWeek.map((_, idx) => getDayStatus(idx))}
               />
             </div>
             
