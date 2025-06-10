@@ -351,7 +351,20 @@ const LeetCodeWidget: React.FC = () => {
   const handleSaveUsername = () => {
     console.log(`handleSaveUsername: Attempting to save username: ${leetcodeUsername.trim()}`);
     if (leetcodeUsername.trim()) {
-      localStorage.setItem(LEETCODE_USERNAME_KEY, leetcodeUsername.trim());
+      const previousUsername = localStorage.getItem(LEETCODE_USERNAME_KEY);
+      const newUsername = leetcodeUsername.trim();
+      
+      // Check if the username is changing
+      if (previousUsername !== newUsername) {
+        console.log('Username changed, resetting baseline data');
+        // Reset baseline and first entry flag when changing users
+        localStorage.removeItem(LEETCODE_BASELINE_SOLVED_KEY);
+        localStorage.removeItem(LEETCODE_FIRST_ENTRY_KEY);
+        // Clear daily data when switching users to avoid streak contamination
+        setDailyData([]);
+      }
+      
+      localStorage.setItem(LEETCODE_USERNAME_KEY, newUsername);
       
       // Check if this is a first-time entry
       const isFirstEntry = !localStorage.getItem(LEETCODE_FIRST_ENTRY_KEY);
@@ -360,7 +373,7 @@ const LeetCodeWidget: React.FC = () => {
         // We'll set the baseline after the first successful fetch
       }
       
-      fetchLeetCodeStats(leetcodeUsername.trim(), false); // Initial fetch on save, show loading
+      fetchLeetCodeStats(newUsername, false); // Initial fetch on save, show loading
       console.log('handleSaveUsername: Username saved and fetch initiated.');
     } else {
       setError('Username cannot be empty.');
@@ -514,7 +527,12 @@ const LeetCodeWidget: React.FC = () => {
       <div className="bg-[#1e1e1e] p-6 rounded-2xl shadow-xl flex flex-col h-full text-center items-center justify-center text-[#ff3d71]">
         <p className="text-lg mb-4">Error: {error}</p>
         <button
-          onClick={() => setShowInput(true)}
+          onClick={() => {
+            // Reset baseline when trying again with potentially new username
+            localStorage.removeItem(LEETCODE_BASELINE_SOLVED_KEY);
+            localStorage.removeItem(LEETCODE_FIRST_ENTRY_KEY);
+            setShowInput(true);
+          }}
           className="bg-[#c30052] hover:bg-[#d40058] text-white px-6 py-3 rounded-full font-medium transition-colors mt-4"
         >
           Try Again
@@ -534,6 +552,7 @@ const LeetCodeWidget: React.FC = () => {
             <StreakCard 
               streakCount={currentStreak} 
               penguinImg={currentPenguinImage}
+              username={leetcodeUsername}
             />
           </div>
 
@@ -660,6 +679,9 @@ const LeetCodeWidget: React.FC = () => {
               <button 
                 onClick={() => { 
                   setShowSettingsMenu(false);
+                  // Reset baseline to avoid streak calculation issues with new username
+                  localStorage.removeItem(LEETCODE_BASELINE_SOLVED_KEY);
+                  localStorage.removeItem(LEETCODE_FIRST_ENTRY_KEY);
                   setShowInput(true); 
                 }}
                 className="flex items-center gap-2 text-sm text-left text-white/80 hover:text-white hover:bg-zinc-800 p-2 rounded transition-colors"
@@ -694,7 +716,7 @@ const LeetCodeWidget: React.FC = () => {
         </div>
 
         {showDsaSheetInput && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-opacity-70 flex items-center justify-center z-50">
             <div className="bg-[#1e1e1e] rounded-2xl flex flex-col items-center justify-center p-6 w-full max-w-md relative">
               <h3 className="text-xl font-semibold mb-6 text-white">Enter DSA Sheet URL</h3>
               <input
@@ -730,7 +752,12 @@ const LeetCodeWidget: React.FC = () => {
       <div className="text-center text-gray-600 dark:text-gray-400">
           <p>No LeetCode stats to display. Please ensure your username is correct or enter one above.</p>
           <button
-            onClick={() => setShowInput(true)}
+            onClick={() => {
+              // Reset baseline data when entering new username from fallback state
+              localStorage.removeItem(LEETCODE_BASELINE_SOLVED_KEY);
+              localStorage.removeItem(LEETCODE_FIRST_ENTRY_KEY);
+              setShowInput(true);
+            }}
             className="bg-[#ff4101] text-white px-4 py-2 rounded-lg font-medium hover:bg-opacity-90 transition-colors mt-4"
           >
             Enter Username

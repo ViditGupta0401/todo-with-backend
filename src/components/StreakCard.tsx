@@ -4,26 +4,60 @@ import flame from '../components/icons image/flame.webp'
 interface StreakCardProps {
   streakCount: number;
   penguinImg: string; // PNG path
+  username?: string; // LeetCode username for profile link
 }
 
-const StreakCard: React.FC<StreakCardProps> = ({ streakCount, penguinImg }) => {
+const StreakCard: React.FC<StreakCardProps> = ({ streakCount, penguinImg, username }) => {
+  // Open LeetCode profile when penguin is clicked
+  const handlePenguinClick = () => {
+    if (username) {
+      window.open(`https://leetcode.com/${username}`, '_blank');
+    }
+  };
   // Determine gradient color based on penguin image
   const getBgGradient = () => {
-    if (penguinImg.includes('angry.png')) return 'from-transparent to-orange-900';
-    if (penguinImg.includes('cry.png')) return 'from-transparent to-slate-900';
-    if (penguinImg.includes('happy.png')) return 'from-transparent to-green-900';
-    if (penguinImg.includes('love.png')) return 'from-transparent to-pink-900';
-    if (penguinImg.includes('more angry.png')) return 'from-transparent to-red-900';
-    if (penguinImg.includes('more cry.png') || penguinImg.includes('more-cry.png')) return 'from-transparent to-zinc-900';
-    if (penguinImg.includes('neutral.png')) return 'from-transparent to-blue-900';
-    if (penguinImg.includes('sad.png')) return 'from-transparent to-gray-900';
+    // Extract the penguin type from the imported object reference in LeetcodeWidget
+    // This is more reliable than path checking which can break in production builds
+    const imgPath = penguinImg.toLowerCase();
+    
+    // Debug log to see the image path in production
+    console.log('Penguin image path:', imgPath);
+
+    // Function to get the last part of the path (filename)
+    const getFileNameFromPath = (path: string): string => {
+      // Handle both URL-style paths and filesystem paths
+      const parts = path.split(/[/\\]/);
+      return parts[parts.length - 1];
+    };
+
+    const fileName = getFileNameFromPath(imgPath);
+    console.log('Extracted filename:', fileName);
+
+    // Match based on the filename
+    if (fileName.includes('angry') && !fileName.includes('more')) 
+      return 'from-transparent to-orange-900';
+    if (fileName.includes('cry') && !fileName.includes('more')) 
+      return 'from-transparent to-slate-900';
+    if (fileName.includes('happy')) 
+      return 'from-transparent to-green-900';
+    if (fileName.includes('love')) 
+      return 'from-transparent to-pink-900';
+    if (fileName.includes('more') && fileName.includes('angry')) 
+      return 'from-transparent to-red-900';
+    if (fileName.includes('more') && fileName.includes('cry')) 
+      return 'from-transparent to-zinc-900';
+    if (fileName.includes('neutral')) 
+      return 'from-transparent to-blue-900';
+    if (fileName.includes('sad')) 
+      return 'from-transparent to-gray-900';
     
     // Default fallback
     return 'from-transparent to-zinc-900';
   };
   return (
   <div
-    className={`w-[100%] h-[100%] bg-gradient-to-b ${getBgGradient()} rounded-2xl p-4 flex flex-col justify-between items-center relative overflow-hidden`}
+  onClick={handlePenguinClick}
+    className={`w-[100%] h-[100%] cursor-pointer bg-gradient-to-b ${getBgGradient()} rounded-2xl p-4 flex flex-col justify-between items-center relative overflow-hidden`}
   >
     {/* Top Row: Streak Number & Label, Flame */}
     <div className="w-full flex gap-1 flex-row items-start justify-between">
@@ -44,11 +78,13 @@ const StreakCard: React.FC<StreakCardProps> = ({ streakCount, penguinImg }) => {
           alt="" 
         />
       </div>
-    </div>
-    {/* Penguin at bottom center */}    <img
+    </div>    {/* Penguin at bottom center - clickable to open LeetCode profile */}    
+    <img
       src={penguinImg}
       alt="penguin"
-      className="w-[58%] object-contain absolute left-1/2 -bottom-[6px] -translate-x-1/2 pointer-events-none z-20"    
+   
+      className={`w-[58%] z-10 object-contain absolute left-1/2 -bottom-[6px] -translate-x-1/2 ${username ? 'cursor-pointer hover:scale-105 transition-transform' : 'pointer-events-none'} z-20`}
+      title={username ? `Open ${username}'s LeetCode profile` : ''}
     />
   </div>
   );
