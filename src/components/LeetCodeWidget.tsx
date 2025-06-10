@@ -460,10 +460,16 @@ const LeetCodeWidget: React.FC = () => {
     const dayStr = format(day, 'yyyy-MM-dd');
     const dataForDay = dailyData.find(d => d.date === dayStr);
     const today = new Date();
+    const todayStr = format(today, 'yyyy-MM-dd');
     
     if (dataForDay?.isStreakDay) {
       return 'completed';
-    } 
+    }
+    
+    // Check if this is today but not completed
+    if (dayStr === todayStr) {
+      return 'today-not-completed';
+    }
     
     // Check if this is a past day (before today)
     if (day < today) {

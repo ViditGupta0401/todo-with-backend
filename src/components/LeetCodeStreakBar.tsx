@@ -3,7 +3,7 @@ import React from "react";
 const daysOfWeek = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 interface LeetCodeStreakBarProps {
-  streakDays: ('completed' | 'not-completed' | 'past-not-completed')[]; // Status for each day
+  streakDays: ('completed' | 'not-completed' | 'past-not-completed' | 'today-not-completed')[]; // Status for each day
 }
 
 const LeetCodeStreakBar: React.FC<LeetCodeStreakBarProps> = ({ streakDays }) => (
@@ -16,7 +16,9 @@ const LeetCodeStreakBar: React.FC<LeetCodeStreakBarProps> = ({ streakDays }) => 
               ? "bg-[#ff2d55]" 
               : streakDays[idx] === 'past-not-completed'
                 ? "bg-[#444444]" 
-                : "bg-[#00000055]"
+                : streakDays[idx] === 'today-not-completed'
+                  ? "bg-[#00000030] ring-1 ring-[#ff2d55] ring-opacity-70"
+                  : "bg-[#00000055]"
           }`}
         >
           {streakDays[idx] === 'completed' && (
