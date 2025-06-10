@@ -107,7 +107,7 @@ const Dock: React.FC = () => {
 
       {/* Main dock - Magic UI style */}
       <div className="flex items-center backdrop-blur-lg bg-white/75 dark:bg-zinc-800/80 rounded-2xl shadow-xl p-1.5 border border-white/20 dark:border-zinc-700/50">      <div className="flex gap-1">
-        {/* Widget+ Button */}
+          {/* Widget+ Button */}
           <div className="flex items-center">
             <button
               onClick={() => setShowWidgetSelector(true)}

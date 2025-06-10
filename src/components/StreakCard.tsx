@@ -35,11 +35,14 @@ const StreakCard: React.FC<StreakCardProps> = ({ streakCount, penguinImg }) => {
         <span className="text-white font-light text-xs leading-tight font-sans opacity-90 mt-[2px] tracking-wide drop-shadow-sm whitespace-pre-line">
           Streak<br />
         </span>
-      </div>
-      
-      {/* SVG Flame icon instead of imported image */}
-      <div className=" mt-[2px] drop-shadow-[0_0_6px_#ffb300]">
-        <img src={flame} className=" w-12" alt="" />
+      </div>      
+      {/* Flame icon with dynamic styling based on streak */}
+      <div className={`mt-[2px] ${streakCount > 0 ? "drop-shadow-[0_0_6px_#ffb300]" : ""}`}>
+        <img 
+          src={flame} 
+          className={`w-12 ${streakCount === 0 ? "filter grayscale opacity-50" : ""}`}
+          alt="" 
+        />
       </div>
     </div>
     {/* Penguin at bottom center */}    <img

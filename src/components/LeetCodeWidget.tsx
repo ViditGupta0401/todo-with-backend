@@ -58,6 +58,7 @@ const LeetCodeWidget: React.FC = () => {
   const [dailyData, setDailyData] = useState<DailyLeetCodeData[]>([]);
   const [dsaSheetUrl, setDsaSheetUrl] = useState<string>('');
   const [showDsaSheetInput, setShowDsaSheetInput] = useState<boolean>(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState<boolean>(false);
   const [currentPenguinImage, setCurrentPenguinImage] = useState<string>(neutralPenguin);
 
   const PENGUIN_IMAGES = {
@@ -524,7 +525,9 @@ const LeetCodeWidget: React.FC = () => {
 
   if (stats) {
     return (
-      <div className="bg-zinc-800 p-2 rounded-2xl shadow-xl flex flex-col text-white font-sans relative">
+      <div className="bg-zinc-800 p-2 rounded-3xl shadow-xl flex flex-col text-white font-sans relative">
+        
+        
         <div className="flex flex-col md:flex-row gap-1 mb-2">
           {/* Left side - Streak Card */}
           <div className="w-[35%] h-[140px] flex-shrink-0">
@@ -579,7 +582,7 @@ const LeetCodeWidget: React.FC = () => {
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-3 mt-2">
+        <div className="flex gap-1 mt-2">
           <button
             onClick={() => window.open('https://leetcode.com/contest/', '_blank')}
             className="flex-1 bg-[#3A3A3D] hover:bg-[#4A4A4D] text-white px-4 py-3 rounded-full font-medium transition-colors text-center flex items-center justify-center gap-2"
@@ -592,7 +595,7 @@ const LeetCodeWidget: React.FC = () => {
               <path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z"/>
               <path d="M6 9H4.5a1 1 0 0 1 0-5H6"/>
             </svg>
-            Contest
+            
           </button>
           <button
             onClick={handleDailyProblemClick}
@@ -606,7 +609,7 @@ const LeetCodeWidget: React.FC = () => {
               <path d="M17.5 17.5 16 16.3V14"/>
               <circle cx="16" cy="16" r="6"/>
             </svg>
-            Daily
+            
           </button>
           {dsaSheetUrl ? (
             <button
@@ -634,9 +637,60 @@ const LeetCodeWidget: React.FC = () => {
                 <path d="M16 17H8"/>
                 <path d="M10 9H8"/>
               </svg>
-              Sheet
+              
             </button>
           )}
+
+          {/* Settings Button  */}
+        <button 
+          onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+          className=" bg-zinc-700 flex-1 flex items-center justify-center text-white/70 hover:text-white transition-colors p-1.5 rounded-full hover:bg-white/10"
+          aria-label="Settings"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+
+        {/* Settings Dropdown Menu */}
+        {showSettingsMenu && (
+          <div className=" absolute top-10 right-2 z-20 bg-zinc-900 rounded-lg shadow-lg border border-zinc-700 p-2 w-48 transition-all">
+            <div className="flex flex-col gap-1.5">
+              <button 
+                onClick={() => { 
+                  setShowSettingsMenu(false);
+                  setShowInput(true); 
+                }}
+                className="flex items-center gap-2 text-sm text-left text-white/80 hover:text-white hover:bg-zinc-800 p-2 rounded transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 7h-3a2 2 0 0 1-2-2V2"/>
+                  <path d="M9 18a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7l4 4v10a2 2 0 0 1-2 2Z"/>
+                  <path d="M3 15h6"/>
+                  <path d="M6 18l3-3-3-3"/>
+                </svg>
+                Change Username
+              </button>
+              <button 
+                onClick={() => {
+                  setShowSettingsMenu(false);
+                  setShowDsaSheetInput(true);
+                }}
+                className="flex items-center gap-2 text-sm text-left text-white/80 hover:text-white hover:bg-zinc-800 p-2 rounded transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <path d="M14 2v6h6"/>
+                  <path d="M12 18v-6"/>
+                  <path d="M9 15h6"/>
+                </svg>
+                Change DSA Sheet URL
+              </button>
+            </div>
+          </div>
+        )}
+
         </div>
 
         {showDsaSheetInput && (
