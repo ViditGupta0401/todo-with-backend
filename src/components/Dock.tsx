@@ -6,12 +6,14 @@ import {
 } from 'react-icons/fi';
 import { useTheme } from '../context/ThemeContext';
 import { useWidgetContext } from '../context/WidgetContext';
+import Guide from './Guide';
 
 const Dock: React.FC = () => {
   const { isEditingLayout, setIsEditingLayout, setShowWidgetSelector } = useWidgetContext();
   const { theme } = useTheme();
   const [showSettings, setShowSettings] = useState(false);
   const [activeIcon, setActiveIcon] = useState<string | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -93,6 +95,14 @@ const Dock: React.FC = () => {
                   </button>
                 </div>
                 
+                {/* Guide Button */}
+                <button
+                  onClick={() => { setShowGuide(true); setShowSettings(false); }}
+                  className="w-full text-left py-2 px-3 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-sm font-medium text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 mt-1"
+                >
+                  Guide & Documentation
+                </button>
+                
                 <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500 dark:text-gray-400">TodoTrack</span>
@@ -101,6 +111,22 @@ const Dock: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guide Modal */}
+      {showGuide && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto relative">
+            <button
+              onClick={() => setShowGuide(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-red-500 bg-gray-100 dark:bg-zinc-800 rounded-full p-2"
+              aria-label="Close Guide"
+            >
+              ×
+            </button>
+            <Guide />
           </div>
         </div>
       )}

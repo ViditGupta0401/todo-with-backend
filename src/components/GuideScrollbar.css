@@ -1,0 +1,33 @@
+/* Custom scrollbar for Guide component */
+.guide-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #ff4101 #f3f4f6;
+}
+.guide-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  background: #f3f4f6;
+  border-radius: 8px;
+}
+.guide-scrollbar::-webkit-scrollbar-thumb {
+  background: #ff4101;
+  border-radius: 8px;
+  border: 2px solid #f3f4f6;
+}
+.guide-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #e03a00;
+}
+
+/* Dark mode */
+.dark .guide-scrollbar {
+  scrollbar-color: #ff4101 #222126;
+}
+.dark .guide-scrollbar::-webkit-scrollbar {
+  background: #222126;
+}
+.dark .guide-scrollbar::-webkit-scrollbar-thumb {
+  background: #ff4101;
+  border: 2px solid #222126;
+}
+.dark .guide-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #e03a00;
+} 
