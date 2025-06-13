@@ -21,6 +21,8 @@ import ClockWidget from './components/ClockWidget';
 import UpcomingEventsWidget from './components/UpcomingEventsWidget';
 import { migrateWidgetLayouts, migrateTasks, ensureValidWidgetLayouts } from './utils/migration';
 import LeetCodeWidget from './components/LeetCodeWidget';
+import welcomePenguin from './penguin images/welcome.png';
+import { RoughNotation, RoughNotationGroup } from 'react-rough-notation';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
@@ -70,7 +72,8 @@ function App() {
   // Use context for widget state
   const {
     activeWidgets,
-    setActiveWidgets
+    setActiveWidgets,
+    setShowWidgetSelector
   } = useWidgetContext();
   
   const [quickLinksKey, setQuickLinksKey] = useState(0); // To force re-render
@@ -952,7 +955,24 @@ function App() {
               onRemoveWidget={handleRemoveWidget}
             />
           ) : (
-            <div className="text-center text-gray-400 py-12">No widgets to display.</div>
+            <div className="flex flex-col mt-10 items-center justify-center min-h-[60vh] text-center relative">
+              <RoughNotationGroup show={true}>
+                <h1 className="text-3xl md:text-6xl mb-5 sm:text-4xl tracking-tight space-x-2 font-bold text-slate-100">
+                  <RoughNotation type="crossed-off" color="#ef4444" strokeWidth={3} padding={2} show={true}> <span className='text-zinc-500' >Hold Off</span></RoughNotation> Smash <RoughNotation type="box" color="#06b6d4" strokeWidth={3} padding={4} show={true}><span className="text-cyan-400">tasks</span></RoughNotation>. Track <RoughNotation type="underline" strokeWidth={5} color="#FFB75983" padding={[0,2]} show={true}><span className="text-[#F50056] ">Leetcode</span></RoughNotation>.<br />
+                  Plan your week. Keep your <span className="text-white">spark</span>.
+                </h1>
+              </RoughNotationGroup>
+              <p className="text-2xl mt-4 text-gray-300 mb-8 max-w-xl mx-auto">
+                It's not magic. It's just really cute, really smart, and made for you
+              </p>
+              <button
+                className="bg-red-500 hover:bg-red-600 text-white font-semibold px-8 py-3 rounded-full text-lg shadow-lg transition-all duration-200"
+                onClick={() => setShowWidgetSelector(true)}
+              >
+                Get Start
+              </button>
+              <img src={welcomePenguin} alt="Welcome Penguin" className="w-56 h-56 md:w-72 md:h-72 sm:w-48 sm:h-48 fixed left-0 bottom-0 drop-shadow-xl pointer-events-none select-none" style={{zIndex: 10}} />
+            </div>
           )}
         </div>
         
