@@ -4,12 +4,7 @@
 
 // Default widget layouts to use when creating or resetting
 export const DEFAULT_WIDGET_LAYOUTS = {
-  lg: [
-    { i: 'quickLinks', x: 0, y: 0, w: 1, h: 2 },
-    { i: 'todoList', x: 1, y: 0, w: 2, h: 3 },
-    { i: 'analytics', x: 3, y: 0, w: 1, h: 2 },
-    { i: 'clock', x: 0, y: 1, w: 1, h: 1 }
-  ]
+  lg: []
 };
 
 /**
@@ -20,8 +15,8 @@ export function ensureValidWidgetLayouts() {
   try {
     const layouts = JSON.parse(localStorage.getItem(key) || '{}');
     
-    // Check if layouts.lg exists and is a valid array with items
-    if (!layouts.lg || !Array.isArray(layouts.lg) || layouts.lg.length === 0) {
+    // Check if layouts.lg exists and is a valid array
+    if (!layouts.lg || !Array.isArray(layouts.lg)) {
       localStorage.setItem(key, JSON.stringify(DEFAULT_WIDGET_LAYOUTS));
       return false; // Return false to indicate a reset happened
     }
@@ -81,9 +76,9 @@ export function migrateWidgetLayouts() {
       return;
     }
     
-    // If lg exists but is not an array or is empty, fix it
-    if (!Array.isArray(parsed.lg) || parsed.lg.length === 0) {
-      parsed.lg = DEFAULT_WIDGET_LAYOUTS.lg;
+    // If lg exists but is not an array, fix it
+    if (!Array.isArray(parsed.lg)) {
+      parsed.lg = [];
       localStorage.setItem(key, JSON.stringify(parsed));
       return;
     }
@@ -99,7 +94,7 @@ export function migrateWidgetLayouts() {
     );
     
     if (hasInvalidItems) {
-      parsed.lg = DEFAULT_WIDGET_LAYOUTS.lg;
+      parsed.lg = [];
       localStorage.setItem(key, JSON.stringify(parsed));
     }
   } catch (error) {

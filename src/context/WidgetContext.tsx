@@ -18,15 +18,15 @@ export const WidgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const savedWidgets = localStorage.getItem('active-widgets');
       if (savedWidgets) {
         const parsed = JSON.parse(savedWidgets);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
     } catch (error) {
       console.error('Error loading active widgets from localStorage:', error);
     }
-    // Default widgets if none in localStorage
-    return ['quickLinks', 'todoList', 'analytics', 'clock', 'upcomingEvents'];
+    // Return empty array if no widgets in localStorage
+    return [];
   });
   
   const [isEditingLayout, setIsEditingLayout] = useState<boolean>(false);
