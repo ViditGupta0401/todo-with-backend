@@ -3,17 +3,10 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faKeyboard, faLightbulb, faBook, faListCheck, faChartBar, faLink, faClock, faFire, faCalendar, faCode } from '@fortawesome/free-solid-svg-icons';
 import './GuideScrollbar.css';
 
-const Guide = () => {
-  const shortcuts = [
-    { key: 'Ctrl + N', description: 'Add new task' },
-    { key: 'Ctrl + F', description: 'Filter tasks' },
-    { key: 'Ctrl + S', description: 'Save current state' },
-    { key: 'Ctrl + D', description: 'Toggle dark mode' },
-    { key: 'Ctrl + L', description: 'Add quick link' },
-    { key: 'Ctrl + E', description: 'Add event' },
-    { key: 'Ctrl + P', description: 'Start Pomodoro timer' },
-    { key: 'Ctrl + H', description: 'Show/hide heatmap' },
-    { key: 'Ctrl + M', description: 'Open settings menu' },
+const Guide = () => {  const shortcuts = [
+    { key: 'Enter', description: 'Add new task' },
+    { key: '←/→', description: 'Adjust task priority' },
+    { key: 'Shift + Enter', description: 'Add repeating task' },
   ];
 
   const widgets = [
@@ -63,7 +56,6 @@ const Guide = () => {
       desc: 'Calculate your Body Mass Index and track your health.'
     },
   ];
-
   const features = [
     'Customizable dashboard with drag-and-drop widgets',
     'Persistent data storage (localStorage)',
@@ -74,7 +66,7 @@ const Guide = () => {
     'Pomodoro timer for focused work',
     'LeetCode widget for coding practice',
     'BMI calculator for health tracking',
-    'Keyboard shortcuts for power users',
+    'Task input shortcuts (Enter, arrows, Shift+Enter)',
   ];
 
   return (
