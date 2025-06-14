@@ -853,7 +853,7 @@ function App() {
   return (
     <PomodoroSettingsProvider>
       <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
-        <div className="relative z-50 pt-4 pb-16">
+        <header className="relative z-50 pt-4 pb-16">
           {widgets.length > 0 ? (
             <WidgetManager 
               widgets={widgets}
@@ -861,32 +861,35 @@ function App() {
               onRemoveWidget={handleRemoveWidget}
             />
           ) : (
-            <div className="flex flex-col mt-10 items-center justify-center min-h-[60vh] text-center relative">
+            <main className="flex flex-col mt-10 items-center justify-center min-h-[60vh] text-center relative">
               <RoughNotationGroup show={true}>
                 <h1 className="text-3xl md:text-6xl mb-5 sm:text-4xl tracking-tight space-x-2 font-bold text-slate-100">
                   <RoughNotation type="crossed-off" color="#ef4444" strokeWidth={3} padding={2} show={true}> <span className='text-zinc-500' >Hold Off</span></RoughNotation> Smash <RoughNotation type="box" color="#06b6d4" strokeWidth={3} padding={4} show={true}><span className="text-cyan-400">tasks</span></RoughNotation>.
-                  Grind <RoughNotation type="underline" strokeWidth={5} color="#FFB75983" padding={[0,2]} show={true}><span className="text-[#F50056] ">Leetcode</span></RoughNotation>.
+                  Grind <RoughNotation type="underline" strokeWidth={5} color="#FFB75983" padding={[0,2]} show={true}><span className="text-[#F50056] ">LeetCode</span></RoughNotation>.
                   <br />
                   Plan your week. Keep your <span className="text-white">spark</span>.
-                  
-                  
                 </h1>
               </RoughNotationGroup>
-              <p className="text-base font-normal mt-4 text-gray-600 mb-8 max-w-xl mx-auto">
-                <span className=' text-xl text-gray-400 font-semibold'>Your Data, Your Nest</span><br />
-                We don't peek. Everything you do is stored locally on your device<br />
-                no clouds, no spying, just you and your productivity.
-              </p>
+              <section className="text-base font-normal mt-4 text-gray-600 mb-8 max-w-xl mx-auto">
+                <h2 className='text-xl text-gray-400 font-semibold'>Your Data, Your Nest</h2>
+                <p>We don't peek. Everything you do is stored locally on your device<br />
+                no clouds, no spying, just you and your productivity.</p>
+              </section>
               <button
                 className="bg-red-500 hover:bg-red-600 text-white font-semibold px-8 py-3 rounded-full text-lg shadow-lg transition-all duration-200"
                 onClick={() => setShowWidgetSelector(true)}
               >
                 Get Started
               </button>
-              <img src={welcomePenguin} alt="Welcome Penguin" className="w-56 h-56 md:w-72 md:h-72 sm:w-48 sm:h-48 fixed left-0 bottom-0 drop-shadow-xl pointer-events-none select-none" style={{zIndex: 10}} />
-            </div>
+              <img 
+                src={welcomePenguin} 
+                alt="Welcome to Doing - Your Productivity Platform" 
+                className="w-56 h-56 md:w-72 md:h-72 sm:w-48 sm:h-48 fixed left-0 bottom-0 drop-shadow-xl pointer-events-none select-none" 
+                style={{zIndex: 10}} 
+              />
+            </main>
           )}
-        </div>
+        </header>
         
         <WidgetSelector onSelectWidget={handleAddWidget} />
         
