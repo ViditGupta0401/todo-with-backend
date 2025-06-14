@@ -102,6 +102,16 @@ const Dock: React.FC = () => {
                 >
                   Guide & Documentation
                 </button>
+
+                {/* Feedback Link */}
+                <a
+                  href="https://forms.gle/iecFXNK53Cwf1odC9"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full text-left py-2 px-3 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-sm font-medium text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 mt-1 block"
+                >
+                  Feedback & Issues
+                </a>
                 
                 <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex justify-between items-center">
