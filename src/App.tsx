@@ -23,6 +23,7 @@ import { migrateWidgetLayouts, migrateTasks, ensureValidWidgetLayouts } from './
 import LeetCodeWidget from './components/LeetCodeWidget';
 import welcomePenguin from './penguin images/welcome.png';
 import { RoughNotation, RoughNotationGroup } from 'react-rough-notation';
+import { pageview, event } from './utils/analytics';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
@@ -497,6 +498,12 @@ function App() {
   }, [dailyData]);
 
   const addTask = (text: string, priority: Task['priority'], isRepeating: boolean = false) => {
+    event({
+      action: 'add_task',
+      category: 'Tasks',
+      label: isRepeating ? 'repeating' : 'one-time',
+      value: 1
+    });
     const timestamp = Date.now();
     const taskDate = format(new Date(timestamp), 'yyyy-MM-dd');
     console.log('Adding task with timestamp:', timestamp, 'date:', taskDate, 'isRepeating:', isRepeating);
@@ -518,6 +525,11 @@ function App() {
   };
 
   const toggleTask = (id: string) => {
+    event({
+      action: 'toggle_task',
+      category: 'Tasks',
+      label: 'task_completion'
+    });
     setTasks(prevTasks => {
       const updatedTasks = prevTasks.map(task => {
         if (task.id === id) {
@@ -675,7 +687,11 @@ function App() {
   const handleAddWidget = (widgetTemplate: WidgetTemplate) => {
     if (!activeWidgets.includes(widgetTemplate.id)) {
       setActiveWidgets([...activeWidgets, widgetTemplate.id]);
-
+      event({
+        action: 'add_widget',
+        category: 'Widget',
+        label: widgetTemplate.title
+      });
       const widgetList = Object.values(widgetDefinitions);
       let minX = 0;
       if (widgetList.length > 0) {
@@ -694,9 +710,19 @@ function App() {
 
   const handleRemoveWidget = (widgetId: string) => {
     setActiveWidgets(activeWidgets.filter(id => id !== widgetId));
+    event({
+      action: 'remove_widget',
+      category: 'Widget',
+      label: widgetId
+    });
   };
 
   const handleAddQuickLink = (link: { title: string; url: string }) => {
+    event({
+      action: 'add_quicklink',
+      category: 'QuickLinks',
+      label: link.title
+    });
     const newQuickLink = {
       id: Date.now().toString(),
       title: link.title,
@@ -819,6 +845,11 @@ function App() {
     };
   }, []);
   
+  // Track initial page view
+  useEffect(() => {
+    pageview(window.location.pathname + window.location.search);
+  }, []);
+
   return (
     <PomodoroSettingsProvider>
       <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
