@@ -156,11 +156,13 @@ const LeetCodeWidget: React.FC = () => {
           console.log('Stats set successfully. Total Solved:', profile.totalSolved);
           setShowInput(false);
 
-          const todayStr = format(new Date(), 'yyyy-MM-dd');
+          const today = new Date();
+          const effectiveToday = getEffectiveDate(today);
+          const todayStr = format(effectiveToday, 'yyyy-MM-dd');
           setDailyData(prevData => {
             const updatedData = prevData.filter(d => d.date !== todayStr); 
 
-            const yesterdayStr = format(addDays(new Date(), -1), 'yyyy-MM-dd');
+            const yesterdayStr = format(addDays(effectiveToday, -1), 'yyyy-MM-dd');
             const yesterdayData = prevData.find(d => d.date === yesterdayStr);
 
             let isStreakDay = false;
@@ -201,7 +203,7 @@ const LeetCodeWidget: React.FC = () => {
               isStreakDay: isStreakDay
             });
 
-            const thirtyDaysAgo = format(addDays(new Date(), -30), 'yyyy-MM-dd');
+            const thirtyDaysAgo = format(addDays(effectiveToday, -30), 'yyyy-MM-dd');
             return updatedData.filter(d => parseISO(d.date) >= parseISO(thirtyDaysAgo));
           });
 
@@ -391,7 +393,8 @@ const LeetCodeWidget: React.FC = () => {
 
     const relevantData = sortedDailyData.filter(d => {
       const date = parseISO(d.date);
-      return date <= effectiveToday;
+      const effectiveDate = getEffectiveDate(date);
+      return effectiveDate <= effectiveToday;
     });
 
     if (relevantData.length === 0) return 0;
@@ -401,17 +404,18 @@ const LeetCodeWidget: React.FC = () => {
 
     for (let i = 0; i < relevantData.length; i++) {
       const currentDay = parseISO(relevantData[i].date);
+      const effectiveCurrentDay = getEffectiveDate(currentDay);
 
       if (relevantData[i].isStreakDay) {
-        if (lastDate === null || isSameDay(currentDay, addDays(lastDate, 1))) {
+        if (lastDate === null || isSameDay(effectiveCurrentDay, addDays(lastDate, 1))) {
           tempStreak++;
-        } else if (!isSameDay(currentDay, lastDate)) {
+        } else if (!isSameDay(effectiveCurrentDay, lastDate)) {
           tempStreak = 1;
         }
       } else {
         tempStreak = 0;
       }
-      lastDate = currentDay;
+      lastDate = effectiveCurrentDay;
       currentStreak = Math.max(currentStreak, tempStreak);
     }
 
@@ -420,8 +424,17 @@ const LeetCodeWidget: React.FC = () => {
     if (latestActiveDay) {
         const latestActiveDate = parseISO(latestActiveDay.date);
         const effectiveLatestDate = getEffectiveDate(latestActiveDate);
-        if (!isSameDay(effectiveLatestDate, effectiveToday) && !isSameDay(effectiveLatestDate, addDays(effectiveToday, -1))) {
-            return 0;
+        const currentHour = today.getHours();
+        
+        // If it's before 5 AM, we should still consider the previous day's streak active
+        if (currentHour < 5) {
+            if (!isSameDay(effectiveLatestDate, effectiveToday) && !isSameDay(effectiveLatestDate, addDays(effectiveToday, -1))) {
+                return 0;
+            }
+        } else {
+            if (!isSameDay(effectiveLatestDate, effectiveToday)) {
+                return 0;
+            }
         }
     }
     
@@ -431,19 +444,20 @@ const LeetCodeWidget: React.FC = () => {
 
     for (let i = relevantData.length - 1; i >= 0; i--) {
         const currentDay = parseISO(relevantData[i].date);
+        const effectiveCurrentDay = getEffectiveDate(currentDay);
         
         if (relevantData[i].isStreakDay) {
-            if (currentLastDate === null || isSameDay(currentLastDate, addDays(currentDay, 1))) {
+            if (currentLastDate === null || isSameDay(currentLastDate, addDays(effectiveCurrentDay, 1))) {
                 tempActiveStreak++;
             } else {
                 break;
             }
         } else {
-            if (!isSameDay(currentDay, effectiveToday)) {
+            if (!isSameDay(effectiveCurrentDay, effectiveToday)) {
                 break; 
             }
         }
-        currentLastDate = currentDay;
+        currentLastDate = effectiveCurrentDay;
     }
     activeStreak = tempActiveStreak;
 
@@ -459,23 +473,24 @@ const LeetCodeWidget: React.FC = () => {
     const day = addDays(startOfCurrentWeek, dayIndex);
     const dayStr = format(day, 'yyyy-MM-dd');
     const dataForDay = dailyData.find(d => d.date === dayStr);
-    const today = new Date();
-    const todayStr = format(today, 'yyyy-MM-dd');
-    
+
+    const now = new Date();
+    const effectiveToday = getEffectiveDate(now);
+    const effectiveTodayStr = format(effectiveToday, 'yyyy-MM-dd');
+
     if (dataForDay?.isStreakDay) {
       return 'completed';
     }
-    
-    // Check if this is today but not completed
-    if (dayStr === todayStr) {
+
+    // Highlight the effective 'today' (which could be yesterday if before 5 AM)
+    if (dayStr === effectiveTodayStr) {
       return 'today-not-completed';
     }
-    
-    // Check if this is a past day (before today)
-    if (day < today) {
+
+    if (parseISO(dayStr) < effectiveToday) {
       return 'past-not-completed';
     }
-    
+
     return 'not-completed';
   }, [dailyData, startOfCurrentWeek]);
 
