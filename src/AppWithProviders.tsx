@@ -3,16 +3,20 @@ import App from './App';
 import { WidgetProvider } from './context/WidgetContext';
 import { PopupProvider } from './context/PopupContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 
 const AppWithProviders: React.FC = () => {
   return (
-    <ThemeProvider>
-      <PopupProvider>
-        <WidgetProvider>
-          <App />
-        </WidgetProvider>
-      </PopupProvider>
-    </ThemeProvider>
+    <>
+      <VercelAnalytics />
+      <ThemeProvider>
+        <PopupProvider>
+          <WidgetProvider>
+            <App />
+          </WidgetProvider>
+        </PopupProvider>
+      </ThemeProvider>
+    </>
   );
 };
 
