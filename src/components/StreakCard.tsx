@@ -36,7 +36,7 @@ const StreakCard: React.FC<StreakCardProps> = ({ streakCount, penguinImg, userna
     // Match based on the filename
     if (fileName.includes('chilling')) 
       return 'from-transparent to-green-700';
-    if (fileName.includes('sleeping with streak')) 
+    if (fileName.includes('sleepingWithStreakPenguin')) 
       return 'from-transparent to-indigo-700';
     if (fileName.includes('angry') && !fileName.includes('more')) 
       return 'from-transparent to-orange-900';

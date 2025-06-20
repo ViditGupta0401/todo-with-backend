@@ -7,8 +7,8 @@ import cryPenguin from '../penguin images/cry.png';
 import moreAngryPenguin from '../penguin images/more angry.png';
 import lovePenguin from '../penguin images/love.png';
 import chillingPenguin from '../penguin images/chilling.png';
-import sleepingWithStreakPenguin from '../penguin images/sleeping with streak.png';
-import { format, startOfWeek, addDays, isSameDay, parseISO } from 'date-fns';
+import sleepingWithStreakPenguin from '../penguin images/sleepingWithStreakPenguin.png';
+import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import LeetCodeStreakBar from './LeetCodeStreakBar';
 import StreakCard from './StreakCard';
 
@@ -391,48 +391,24 @@ const LeetCodeWidget: React.FC = () => {
   };
 
   const calculateStreak = useCallback(() => {
-    let currentStreak = 0;
+    if (dailyData.length === 0) return 0;
     const today = new Date();
     const effectiveToday = getEffectiveDate(today);
-    
+    // Sort dailyData by date ascending
     const sortedDailyData = [...dailyData].sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
-
-    const relevantData = sortedDailyData.filter(d => {
-      const date = parseISO(d.date);
-      const effectiveDate = getEffectiveDate(date);
-      return effectiveDate <= effectiveToday;
-    });
-
-    if (relevantData.length === 0) return 0;
-
-    let tempStreak = 0;
-    let lastDate: Date | null = null;
-
-    for (let i = 0; i < relevantData.length; i++) {
-      const currentDay = parseISO(relevantData[i].date);
-      const effectiveCurrentDay = getEffectiveDate(currentDay);
-
-      if (relevantData[i].isStreakDay) {
-        if (lastDate === null || isSameDay(effectiveCurrentDay, addDays(lastDate, 1))) {
-          tempStreak++;
-        } else if (!isSameDay(effectiveCurrentDay, lastDate)) {
-          tempStreak = 1;
-        }
+    let streak = 0;
+    let currentDate = effectiveToday;
+    while (true) {
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      const entry = sortedDailyData.find(d => d.date === dateStr);
+      if (entry && entry.isStreakDay) {
+        streak++;
+        currentDate = addDays(currentDate, -1);
       } else {
-        tempStreak = 0;
+        break;
       }
-      lastDate = effectiveCurrentDay;
-      currentStreak = Math.max(currentStreak, tempStreak);
     }
-
-    // Ensure that if today is a streak day, the streak is at least 1
-    const todayStr = format(effectiveToday, 'yyyy-MM-dd');
-    const todayEntry = relevantData.find(d => d.date === todayStr && d.isStreakDay);
-    if (todayEntry) {
-      return Math.max(currentStreak, 1);
-    }
-
-    return currentStreak;
+    return streak;
   }, [dailyData]);
 
   const currentStreak = calculateStreak();
