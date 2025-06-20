@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowRotateLeft, faGear } from '@fortawesome/free-solid-svg-icons';
 import { usePopup } from '../../context/PopupContext';
+import { usePomodoroSettings } from '../../context/PomodoroSettingsContext';
 import './PomodoroWidget.css';
 
 type TimerMode = 'focus' | 'shortBreak' | 'longBreak';
@@ -27,9 +28,7 @@ const defaultSettings: TimerSettings = {
 
 const PomodoroWidget: React.FC = () => {
   const { openPopup } = usePopup();
-  const [settings, setSettings] = useState<TimerSettings>(
-    JSON.parse(localStorage.getItem('pomodoroSettings') || JSON.stringify(defaultSettings))
-  );
+  const { settings } = usePomodoroSettings();
   const [mode, setMode] = useState<TimerMode>('focus');
   const [timeLeft, setTimeLeft] = useState<number>(settings.focusDuration * 60); // in seconds
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -39,23 +38,14 @@ const PomodoroWidget: React.FC = () => {
   const totalTime = useRef<number>(settings.focusDuration * 60);
   const lastTickRef = useRef<number | null>(null);
 
-  // Load settings from local storage on mount
+  // When settings or mode changes, reset timer
   useEffect(() => {
-    const savedSettings = localStorage.getItem('pomodoroSettings');
-    if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
-    }
-  }, []);  // Save settings to local storage whenever they change
-  useEffect(() => {
-    localStorage.setItem('pomodoroSettings', JSON.stringify(settings));
-    
-    // Clear any existing timer when settings change
+    // Clear any existing timer when settings or mode change
     if (intervalRef.current !== null) {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
       setIsRunning(false);
     }
-    
     // Update time based on current mode and new settings
     switch (mode) {
       case 'focus':
@@ -72,43 +62,8 @@ const PomodoroWidget: React.FC = () => {
         break;
     }
   }, [settings, mode]);
-  // Set up timer based on current mode
-  useEffect(() => {
-    // Update the timer when mode changes
-    const updateTimerForMode = () => {
-      switch (mode) {
-        case 'focus':
-          totalTime.current = settings.focusDuration * 60;
-          setTimeLeft(settings.focusDuration * 60);
-          break;
-        case 'shortBreak':
-          totalTime.current = settings.shortBreakDuration * 60;
-          setTimeLeft(settings.shortBreakDuration * 60);
-          break;
-        case 'longBreak':
-          totalTime.current = settings.longBreakDuration * 60;
-          setTimeLeft(settings.longBreakDuration * 60);
-          break;
-      }
-    };
-    
-    // Clear any existing interval when mode changes
-    if (intervalRef.current !== null) {
-      window.clearInterval(intervalRef.current);
-      setIsRunning(false);
-    }
-    
-    updateTimerForMode();
-  }, [mode, settings]);
-  
-  useEffect(() => {
-    // Clean up interval on unmount
-    return () => {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current);
-      }
-    };
-  }, []);  const pauseTimer = () => {
+
+  const pauseTimer = () => {
     if (intervalRef.current !== null) {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -120,20 +75,13 @@ const PomodoroWidget: React.FC = () => {
   const startTimer = () => {
     if (intervalRef.current !== null) return;
     setIsRunning(true);
-    lastTickRef.current = Date.now();
     intervalRef.current = window.setInterval(() => {
       setTimeLeft((prevTime) => {
         if (prevTime <= 1) {
           handleTimerComplete();
           return 0;
         }
-        // Calculate elapsed time since last tick
-        const now = Date.now();
-        const lastTick = lastTickRef.current || now;
-        const elapsed = Math.floor((now - lastTick) / 1000);
-        lastTickRef.current = now;
-        // If tab was inactive, elapsed could be > 1
-        return Math.max(prevTime - elapsed, 0);
+        return prevTime - 1;
       });
     }, 1000);
   };
@@ -151,7 +99,9 @@ const PomodoroWidget: React.FC = () => {
         setTimeLeft(settings.longBreakDuration * 60);
         break;
     }
-  };  const handleTimerComplete = () => {
+  };
+
+  const handleTimerComplete = () => {
     pauseTimer();
     playAlertSound();
     
@@ -170,7 +120,9 @@ const PomodoroWidget: React.FC = () => {
       // After any break, go back to focus mode
       setMode('focus');
     }
-  };  // Store audio context reference for stopping the alarm
+  };
+
+  // Store audio context reference for stopping the alarm
   const audioContextRef = useRef<AudioContext | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
   const alarmTimeoutRef = useRef<number | null>(null);
@@ -284,7 +236,9 @@ const PomodoroWidget: React.FC = () => {
     } else {
       startTimer();
     }
-  };  // Format time as MM:SS
+  };
+
+  // Format time as MM:SS
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -304,9 +258,10 @@ const PomodoroWidget: React.FC = () => {
         return '#ff4101';
     }
   };
+
   // Handle settings changes
   const updateSetting = (key: keyof TimerSettings, value: number | string) => {
-    setSettings({ ...settings, [key]: value });
+    // This function is no longer used as settings are managed by the PomodoroSettingsContext
   };
   
   return (

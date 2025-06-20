@@ -425,49 +425,14 @@ const LeetCodeWidget: React.FC = () => {
       currentStreak = Math.max(currentStreak, tempStreak);
     }
 
-    const latestActiveDay = relevantData.filter(d => d.isStreakDay).pop();
-
-    if (latestActiveDay) {
-        const latestActiveDate = parseISO(latestActiveDay.date);
-        const effectiveLatestDate = getEffectiveDate(latestActiveDate);
-        const currentHour = today.getHours();
-        
-        // If it's before 5 AM, we should still consider the previous day's streak active
-        if (currentHour < 5) {
-            if (!isSameDay(effectiveLatestDate, effectiveToday) && !isSameDay(effectiveLatestDate, addDays(effectiveToday, -1))) {
-                return 0;
-            }
-        } else {
-            if (!isSameDay(effectiveLatestDate, effectiveToday)) {
-                return 0;
-            }
-        }
+    // Ensure that if today is a streak day, the streak is at least 1
+    const todayStr = format(effectiveToday, 'yyyy-MM-dd');
+    const todayEntry = relevantData.find(d => d.date === todayStr && d.isStreakDay);
+    if (todayEntry) {
+      return Math.max(currentStreak, 1);
     }
-    
-    let activeStreak = 0;
-    let tempActiveStreak = 0;
-    let currentLastDate: Date | null = null;
 
-    for (let i = relevantData.length - 1; i >= 0; i--) {
-        const currentDay = parseISO(relevantData[i].date);
-        const effectiveCurrentDay = getEffectiveDate(currentDay);
-        
-        if (relevantData[i].isStreakDay) {
-            if (currentLastDate === null || isSameDay(currentLastDate, addDays(effectiveCurrentDay, 1))) {
-                tempActiveStreak++;
-            } else {
-                break;
-            }
-        } else {
-            if (!isSameDay(effectiveCurrentDay, effectiveToday)) {
-                break; 
-            }
-        }
-        currentLastDate = effectiveCurrentDay;
-    }
-    activeStreak = tempActiveStreak;
-
-    return activeStreak;
+    return currentStreak;
   }, [dailyData]);
 
   const currentStreak = calculateStreak();
