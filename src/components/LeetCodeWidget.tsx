@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import happyPenguin from '../penguin images/happy.png';
+import codingPenguin from '../penguin images/coding.png';
 import neutralPenguin from '../penguin images/neutral.png';
 import angryPenguin from '../penguin images/angry.png';
 import sadPenguin from '../penguin images/sad.png';
 import cryPenguin from '../penguin images/cry.png';
 import moreAngryPenguin from '../penguin images/more angry.png';
 import lovePenguin from '../penguin images/love.png';
+import chillingPenguin from '../penguin images/chilling.png';
+import sleepingWithStreakPenguin from '../penguin images/sleeping with streak.png';
 import { format, startOfWeek, addDays, isSameDay, parseISO } from 'date-fns';
 import LeetCodeStreakBar from './LeetCodeStreakBar';
 import StreakCard from './StreakCard';
@@ -62,13 +64,15 @@ const LeetCodeWidget: React.FC = () => {
   const [currentPenguinImage, setCurrentPenguinImage] = useState<string>(neutralPenguin);
 
   const PENGUIN_IMAGES = {
-    happy: happyPenguin,
+    happy: codingPenguin,
     neutral: neutralPenguin,
     angry: angryPenguin,
     sad: sadPenguin,
     cry: cryPenguin,
     'more angry': moreAngryPenguin,
     love: lovePenguin,
+    chilling: chillingPenguin,
+    sleepingWithStreak: sleepingWithStreakPenguin,
   };
 
   const fetchLeetCodeStats = useCallback(async (username: string, isPeriodicCheck: boolean = false) => {
@@ -324,8 +328,10 @@ const LeetCodeWidget: React.FC = () => {
 
         if (todaySolvedCountFromAPI > 1) {
           moodImage = PENGUIN_IMAGES.love;
+        } else if (currentHour >= 5 && currentHour < 20) {
+          moodImage = PENGUIN_IMAGES.chilling;
         } else {
-          moodImage = PENGUIN_IMAGES.happy;
+          moodImage = PENGUIN_IMAGES.sleepingWithStreak;
         }
       } else {
         // Time-based Mood Timeline Logic (without streak)

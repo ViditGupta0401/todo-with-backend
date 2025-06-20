@@ -37,6 +37,7 @@ const PomodoroWidget: React.FC = () => {
   
   const intervalRef = useRef<number | null>(null);
   const totalTime = useRef<number>(settings.focusDuration * 60);
+  const lastTickRef = useRef<number | null>(null);
 
   // Load settings from local storage on mount
   useEffect(() => {
@@ -112,21 +113,32 @@ const PomodoroWidget: React.FC = () => {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    lastTickRef.current = null;
     setIsRunning(false);
-  };const startTimer = () => {
+  };
+
+  const startTimer = () => {
     if (intervalRef.current !== null) return;
-    
     setIsRunning(true);
+    lastTickRef.current = Date.now();
     intervalRef.current = window.setInterval(() => {
       setTimeLeft((prevTime) => {
         if (prevTime <= 1) {
           handleTimerComplete();
           return 0;
         }
-        return prevTime - 1;
+        // Calculate elapsed time since last tick
+        const now = Date.now();
+        const lastTick = lastTickRef.current || now;
+        const elapsed = Math.floor((now - lastTick) / 1000);
+        lastTickRef.current = now;
+        // If tab was inactive, elapsed could be > 1
+        return Math.max(prevTime - elapsed, 0);
       });
     }, 1000);
-  };  const resetTimer = () => {
+  };
+  
+  const resetTimer = () => {
     pauseTimer();
     switch (mode) {
       case 'focus':
@@ -264,7 +276,9 @@ const PomodoroWidget: React.FC = () => {
         }
       });
     }
-  };const toggleStartPause = () => {
+  };
+
+  const toggleStartPause = () => {
     if (isRunning) {
       pauseTimer();
     } else {

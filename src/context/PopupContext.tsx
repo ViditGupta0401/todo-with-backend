@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 // Define popup types
-export type PopupType = 'addEvent' | 'addQuickLink' | 'userGuide' | 'dailyInfo' | 'dayDetails' | 'eventDetails' | 'pomodoroSettings';
+export type PopupType = 'addEvent' | 'addQuickLink' | 'userGuide' | 'dailyInfo' | 'dayDetails' | 'eventDetails' | 'pomodoroSettings' | 'updateInfo';
 
 // Define what data each popup type needs
 interface PopupData {
@@ -60,6 +60,10 @@ interface PopupData {
       description?: string;
       color: string;
     }>;
+  };
+  updateInfo?: {
+    version: string;
+    changelog: string[];
   };
 }
 

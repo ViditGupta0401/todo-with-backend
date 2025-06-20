@@ -24,10 +24,17 @@ import LeetCodeWidget from './components/LeetCodeWidget';
 import welcomePenguin from './penguin images/welcome.png';
 import { RoughNotation, RoughNotationGroup } from 'react-rough-notation';
 import { pageview, event } from './utils/analytics';
+import { usePopup } from './context/PopupContext';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
 const LAST_SAVED_DATE_KEY = 'last-saved-date';
+const UPDATE_VERSION = '1.8.5'; // Change this on every update
+const UPDATE_CHANGELOG = [
+  '📝 Users can now edit their schedules directly from the Upcoming Events widget.',
+  '🔗 You can add direct links in event descriptions, which are clickable.',
+  '✨ Improved update modal and bug fixes.',
+];
 
 interface DailyData {
   date: string;
@@ -71,6 +78,7 @@ function App() {
   } = useWidgetContext();
   
   const [quickLinksKey, setQuickLinksKey] = useState(0);
+  const { openPopup } = usePopup();
 
   const updateDailyData = (currentTasks: Task[], isInitializing = false) => {
     const now = new Date();
@@ -849,6 +857,13 @@ function App() {
   useEffect(() => {
     pageview(window.location.pathname + window.location.search);
   }, []);
+
+  useEffect(() => {
+    const lastSeenVersion = localStorage.getItem('latestUpdateVersion');
+    if (lastSeenVersion !== UPDATE_VERSION) {
+      openPopup('updateInfo', { version: UPDATE_VERSION, changelog: UPDATE_CHANGELOG });
+    }
+  }, [openPopup]);
 
   return (
     <PomodoroSettingsProvider>

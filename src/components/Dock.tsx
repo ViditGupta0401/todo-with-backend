@@ -116,7 +116,7 @@ const Dock: React.FC = () => {
                 <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500 dark:text-gray-400">TodoTrack</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">v1.8.0</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">v1.8.5</span>
                   </div>
                 </div>
               </div>

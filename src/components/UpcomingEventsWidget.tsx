@@ -128,10 +128,20 @@ const UpcomingEventsWidget: React.FC = () => {
     
     // Add event listener for custom event
     window.addEventListener('event-added', handleEventAdded);
+
+    // Add event listener for event-updated
+    const handleEventUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<{event: UpcomingEvent}>;
+      if (customEvent.detail && customEvent.detail.event) {
+        setEvents(prev => prev.map(ev => ev.id === customEvent.detail.event.id ? customEvent.detail.event : ev));
+      }
+    };
+    window.addEventListener('event-updated', handleEventUpdated);
     
     // Clean up the event listener on component unmount
     return () => {
       window.removeEventListener('event-added', handleEventAdded);
+      window.removeEventListener('event-updated', handleEventUpdated);
     };
   }, []);
   
@@ -198,6 +208,21 @@ const UpcomingEventsWidget: React.FC = () => {
                   className="flex items-center bg-[#18171b] rounded-xl shadow-md px-4 py-3 relative group"
                   style={{ minHeight: 64 }}
                 >
+                  {/* Edit button - show on hover, to the left of delete button */}
+                  <button
+                    onClick={() => openPopup('addEvent', {
+                      initialTitle: event.title,
+                      initialDate: event.date,
+                      initialTime: event.time,
+                      initialDescription: event.description || '',
+                      initialColor: event.color,
+                      eventId: event.id
+                    })}
+                    className="absolute top-2 right-8 text-gray-500 hover:text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Edit event"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"><path opacity=".4" d="M15.48 3H7.52C4.07 3 2 5.06 2 8.52v7.95C2 19.94 4.07 22 7.52 22h7.95c3.46 0 5.52-2.06 5.52-5.52V8.52C21 5.06 18.93 3 15.48 3Z" fill="#ba68c8"></path><path d="M21.02 2.978c-1.79-1.8-3.54-1.84-5.38 0l-1.13 1.12c-.1.1-.13.24-.09.37.7 2.45 2.66 4.41 5.11 5.11.03.01.08.01.11.01.1 0 .2-.04.27-.11l1.11-1.12c.91-.91 1.36-1.78 1.36-2.67 0-.9-.45-1.79-1.36-2.71ZM17.86 10.42c-.27-.13-.53-.26-.77-.41-.2-.12-.4-.25-.59-.39-.16-.1-.34-.25-.52-.4-.02-.01-.08-.06-.16-.14-.31-.25-.64-.59-.95-.96-.02-.02-.08-.08-.13-.17-.1-.11-.25-.3-.38-.51-.11-.14-.24-.34-.36-.55-.15-.25-.28-.5-.4-.76-.13-.28-.23-.54-.32-.79L7.9 10.72c-.35.35-.69 1.01-.76 1.5l-.43 2.98c-.09.63.08 1.22.47 1.61.33.33.78.5 1.28.5.11 0 .22-.01.33-.02l2.97-.42c.49-.07 1.15-.4 1.5-.76l5.38-5.38c-.25-.08-.5-.19-.78-.31Z" fill="#ba68c8"></path></svg>
+                  </button>
                   {/* Delete button - show on hover */}
                   <button
                     onClick={() => handleDeleteEvent(event.id)}
@@ -213,7 +238,28 @@ const UpcomingEventsWidget: React.FC = () => {
                   <div className="pl-4 flex-1">
                     <div className="font-bold text-[1.1rem] leading-tight mb-1">{event.title}</div>
                     <div className="text-xs text-gray-400 mb-0.5">{format(parseISO(event.date + 'T' + event.time), 'hh:mm a')}</div>
-                    <div className="text-xs text-gray-500">{event.description || 'Description'}</div>
+                    <div className="text-xs text-gray-500">
+                      {event.description
+                        ? event.description.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+                            /^https?:\/\//.test(part) ? (
+                              <a
+                                key={i}
+                                href={part}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-block align-middle ml-1 mr-1"
+                                title={part}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                                  <path d="M14.99 17.5h1.51c3.02 0 5.5-2.47 5.5-5.5 0-3.02-2.47-5.5-5.5-5.5h-1.51M9 6.5H7.5A5.51 5.51 0 0 0 2 12c0 3.02 2.47 5.5 5.5 5.5H9M8 12h8" stroke="#ba68c8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                                </svg>
+                              </a>
+                            ) : (
+                              <React.Fragment key={i}>{part}</React.Fragment>
+                            )
+                          )
+                        : 'Description'}
+                    </div>
                   </div>
                   <div className="flex flex-col items-end justify-center min-w-[60px]">
                     <span className="text-xl font-medium text-gray-300">{getCountdown(event)}</span>

@@ -8,6 +8,7 @@ import UserGuidePopup from './UserGuidePopup';
 import DayDetailsPopup from './DayDetailsPopup';
 import EventDetailsPopup from './EventDetailsPopup';
 import PomodoroSettingsPopup from './PomodoroSettingsPopup';
+import UpdateModal from './UpdateModal';
 
 interface PopupManagerProps {
   onAddEvent: (event: { title: string; date: string; time: string; description?: string; color: string }) => void;
@@ -95,6 +96,28 @@ const PopupManager: React.FC<PopupManagerProps> = ({ onAddEvent, onAddQuickLink 
             onUpdateSetting={popupData.pomodoroSettings.onUpdateSetting} 
           />
         )}
+      </Popup>
+
+      {/* Update Info Popup */}
+      <Popup
+        isOpen={activePopup === 'updateInfo'}
+        onClose={() => {
+          if (popupData.updateInfo?.version) {
+            localStorage.setItem('latestUpdateVersion', popupData.updateInfo.version);
+          }
+          closePopup();
+        }}
+        title={"What's New"}
+        maxWidth="max-w-md"
+      >
+        <UpdateModal
+          version={popupData.updateInfo?.version || '1.0.0'}
+          changelog={popupData.updateInfo?.changelog || [
+            '✨ Added update modal for new features and bug fixes.',
+            '🐞 Fixed task editing and event color persistence.',
+            '📝 Improved event editing and link detection.',
+          ]}
+        />
       </Popup>
     </>
   );

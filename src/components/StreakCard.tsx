@@ -34,6 +34,10 @@ const StreakCard: React.FC<StreakCardProps> = ({ streakCount, penguinImg, userna
     console.log('Extracted filename:', fileName);
 
     // Match based on the filename
+    if (fileName.includes('chilling')) 
+      return 'from-transparent to-green-700';
+    if (fileName.includes('sleeping with streak')) 
+      return 'from-transparent to-blue-950';
     if (fileName.includes('angry') && !fileName.includes('more')) 
       return 'from-transparent to-orange-900';
     if (fileName.includes('cry') && !fileName.includes('more')) 
@@ -71,7 +75,7 @@ const StreakCard: React.FC<StreakCardProps> = ({ streakCount, penguinImg, userna
         </span>
       </div>      
       {/* Flame icon with dynamic styling based on streak */}
-      <div className={`mt-[2px] ${streakCount > 0 ? "drop-shadow-[0_0_6px_#ffb300]" : ""}`}>
+      <div className={`mt-[2px] ${streakCount > 0 ? "drop-shadow-[0_0_12px_#ffb300]" : ""}`}>
         <img 
           src={flame} 
           className={`w-12 ${streakCount === 0 ? "filter grayscale opacity-50" : ""}`}
@@ -83,7 +87,7 @@ const StreakCard: React.FC<StreakCardProps> = ({ streakCount, penguinImg, userna
       src={penguinImg}
       alt="penguin"
    
-      className={`w-[58%] z-10 object-contain absolute left-1/2 -bottom-[6px] -translate-x-1/2 ${username ? 'cursor-pointer hover:scale-105 transition-transform' : 'pointer-events-none'} z-20`}
+      className={`w-[64%] z-10 object-contain absolute left-1/2 -bottom-[6px] -translate-x-1/2 ${username ? 'cursor-pointer hover:scale-105 transition-transform' : 'pointer-events-none'} z-20`}
       title={username ? `Open ${username}'s LeetCode profile` : ''}
     />
   </div>

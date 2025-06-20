@@ -16,23 +16,43 @@ const AddEventPopup: React.FC<AddEventPopupProps> = ({ onAdd }) => {
     time: '',
     description: '',
   });
+  const isEditing = Boolean(eventData.eventId);
   
-  // Set default date and time when popup opens
+  // Set default values when popup opens
   useEffect(() => {
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
     setForm({
-      title: '',
+      title: eventData.initialTitle || '',
       date: eventData.initialDate || format(tomorrow, 'yyyy-MM-dd'),
       time: eventData.initialTime || '12:00',
-      description: '',
+      description: eventData.initialDescription || '',
     });
-  }, [eventData.initialDate, eventData.initialTime]);
-    const handleSubmit = (e: React.FormEvent) => {
+  }, [eventData.initialTitle, eventData.initialDate, eventData.initialTime, eventData.initialDescription]);
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title || !form.date || !form.time) return;
+    if (isEditing) {
+      // Update existing event in localStorage
+      try {
+        const eventsRaw = localStorage.getItem('upcoming-events-data');
+        let events = eventsRaw ? JSON.parse(eventsRaw) : [];
+        events = events.map((ev: any) =>
+          ev.id === eventData.eventId
+            ? { ...ev, title: form.title, date: form.date, time: form.time, description: form.description, color: ev.color }
+            : ev
+        );
+        localStorage.setItem('upcoming-events-data', JSON.stringify(events));
+        // Dispatch event so widget updates
+        window.dispatchEvent(new CustomEvent('event-updated', { detail: { event: { ...form, id: eventData.eventId, color: events.find((ev: any) => ev.id === eventData.eventId)?.color } } }));
+      } catch (err) {
+        console.error('Error updating event:', err);
+      }
+      closePopup();
+      return;
+    }
     
     // Import and use the getEventsForDate function to check for existing events
     import('../../utils/eventUtils').then(({ getEventsForDate }) => {
@@ -123,7 +143,7 @@ const AddEventPopup: React.FC<AddEventPopupProps> = ({ onAdd }) => {
         type="submit"
         className="w-full bg-[#ff4101] hover:bg-[#e63a00] text-white rounded-lg py-2 mt-2 font-semibold text-sm shadow"
       >
-        Add Event
+        {isEditing ? 'Save Changes' : 'Add Event'}
       </button>
     </form>
   );
