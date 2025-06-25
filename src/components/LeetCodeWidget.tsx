@@ -40,6 +40,10 @@ const DSA_SHEET_URL_KEY = 'dsaSheetUrl';
 const LEETCODE_CACHE_PREFIX = 'leetcode_cache_';
 const LEETCODE_FIRST_ENTRY_KEY = 'leetcodeFirstEntry';
 const LEETCODE_BASELINE_SOLVED_KEY = 'leetcodeBaselineSolved';
+const LEETCODE_SHOW_CONTEST_KEY = 'leetcodeShowContest';
+const LEETCODE_SHOW_STUDY_PLAN_KEY = 'leetcodeShowStudyPlan';
+const LEETCODE_SHOW_DAILY_KEY = 'leetcodeShowDaily';
+const LEETCODE_SHOW_SHEET_KEY = 'leetcodeShowSheet';
 
 // Helper function to determine effective date for submissions
 const getEffectiveDate = (date: Date): Date => {
@@ -62,8 +66,16 @@ const LeetCodeWidget: React.FC = () => {
   const [showDsaSheetInput, setShowDsaSheetInput] = useState<boolean>(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState<boolean>(false);
   const [currentPenguinImage, setCurrentPenguinImage] = useState<string>(neutralPenguin);
+  const [showContest, setShowContest] = useState(() => 
+    localStorage.getItem(LEETCODE_SHOW_CONTEST_KEY) === 'true');
+  const [showStudyPlan, setShowStudyPlan] = useState(() => 
+    localStorage.getItem(LEETCODE_SHOW_STUDY_PLAN_KEY) === 'true');
+  const [showDaily, setShowDaily] = useState(() => 
+    localStorage.getItem(LEETCODE_SHOW_DAILY_KEY) !== 'false'); // Default to true
+  const [showSheet, setShowSheet] = useState(() => 
+    localStorage.getItem(LEETCODE_SHOW_SHEET_KEY) !== 'false'); // Default to true
 
-  const PENGUIN_IMAGES = {
+  const PENGUIN_IMAGES = React.useMemo(() => ({
     happy: codingPenguin,
     neutral: neutralPenguin,
     angry: angryPenguin,
@@ -73,7 +85,7 @@ const LeetCodeWidget: React.FC = () => {
     love: lovePenguin,
     chilling: chillingPenguin,
     sleepingWithStreak: sleepingWithStreakPenguin,
-  };
+  }), []);
 
   const fetchLeetCodeStats = useCallback(async (username: string, isPeriodicCheck: boolean = false) => {
     if (!username.trim()) {
@@ -292,6 +304,17 @@ const LeetCodeWidget: React.FC = () => {
       setDsaSheetUrl(savedDsaSheetUrl);
       console.log('useEffect: Loaded DSA Sheet URL from localStorage.');
     }
+    
+    // Load button visibility settings
+    const savedShowContest = localStorage.getItem(LEETCODE_SHOW_CONTEST_KEY);
+    const savedShowStudyPlan = localStorage.getItem(LEETCODE_SHOW_STUDY_PLAN_KEY);
+    const savedShowDaily = localStorage.getItem(LEETCODE_SHOW_DAILY_KEY);
+    const savedShowSheet = localStorage.getItem(LEETCODE_SHOW_SHEET_KEY);
+    
+    setShowContest(savedShowContest === 'true');
+    setShowStudyPlan(savedShowStudyPlan === 'true');
+    setShowDaily(savedShowDaily !== 'false'); // Default to true if not set
+    setShowSheet(savedShowSheet !== 'false'); // Default to true if not set
   }, [fetchLeetCodeStats]);
 
   useEffect(() => {
@@ -441,6 +464,10 @@ const LeetCodeWidget: React.FC = () => {
     return 'not-completed';
   }, [dailyData, startOfCurrentWeek]);
 
+  // Count how many buttons are visible to determine when to show labels
+  const visibleButtonCount = [showContest, showStudyPlan, showDaily, showSheet].filter(Boolean).length;
+  const shouldShowLabels = visibleButtonCount <= 2;
+
   const handleDailyProblemClick = async () => {
     try {
       const response = await fetch('https://alfa-leetcode-api.onrender.com/daily');
@@ -462,6 +489,54 @@ const LeetCodeWidget: React.FC = () => {
       setShowDsaSheetInput(false);
     }
   };
+  
+  const toggleButtonVisibility = (
+    setting: string,
+    currentValue: boolean,
+    setter: React.Dispatch<React.SetStateAction<boolean>>
+  ) => {
+    const newValue = !currentValue;
+    localStorage.setItem(setting, newValue.toString());
+    setter(newValue);
+  };
+
+  useEffect(() => {
+    localStorage.setItem(LEETCODE_SHOW_CONTEST_KEY, showContest.toString());
+  }, [showContest]);
+
+  useEffect(() => {
+    localStorage.setItem(LEETCODE_SHOW_STUDY_PLAN_KEY, showStudyPlan.toString());
+  }, [showStudyPlan]);
+
+  useEffect(() => {
+    localStorage.setItem(LEETCODE_SHOW_DAILY_KEY, showDaily.toString());
+  }, [showDaily]);
+
+  useEffect(() => {
+    localStorage.setItem(LEETCODE_SHOW_SHEET_KEY, showSheet.toString());
+  }, [showSheet]);
+
+  // Reference to track settings menu element
+  const settingsMenuRef = React.useRef<HTMLDivElement>(null);
+  
+  // Effect to handle clicking outside settings menu
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target as Node)) {
+        setShowSettingsMenu(false);
+      }
+    }
+    
+    // Add event listener when settings menu is shown
+    if (showSettingsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    // Clean up the event listener
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSettingsMenu]);
 
   if (showInput) {
     return (
@@ -576,80 +651,162 @@ const LeetCodeWidget: React.FC = () => {
 
         {/* Action buttons */}
         <div className="flex gap-1 mt-2">
-          <button
-            onClick={() => window.open('https://leetcode.com/contest/', '_blank')}
-            className="flex-1 bg-[#3A3A3D] hover:bg-[#4A4A4D] text-white px-4 py-3 rounded-full font-medium transition-colors text-center flex items-center justify-center gap-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10 14.66v1.626a2 2 0 0 1-.976 1.696A5 5 0 0 0 7 21.978"/>
-              <path d="M14 14.66v1.626a2 2 0 0 0 .976 1.696A5 5 0 0 1 17 21.978"/>
-              <path d="M18 9h1.5a1 1 0 0 0 0-5H18"/>
-              <path d="M4 22h16"/>
-              <path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z"/>
-              <path d="M6 9H4.5a1 1 0 0 1 0-5H6"/>
-            </svg>
-            
-          </button>
-          <button
-            onClick={handleDailyProblemClick}
-            className="flex-1 bg-[#c30052] hover:bg-[#d40058] text-white px-4 py-3 rounded-full font-medium transition-colors text-center flex items-center justify-center gap-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-calendar-clock-icon">
-              <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/>
-              <path d="M16 2v4"/>
-              <path d="M8 2v4"/>
-              <path d="M3 10h5"/>
-              <path d="M17.5 17.5 16 16.3V14"/>
-              <circle cx="16" cy="16" r="6"/>
-            </svg>
-            
-          </button>
-          {dsaSheetUrl ? (
+          {showContest && (
             <button
-              onClick={() => window.open(dsaSheetUrl, '_blank')}
-              className="flex-1 bg-[#00bfff] hover:bg-[#33ccff] text-white px-4 py-3 rounded-full font-medium transition-colors text-center flex items-center justify-center gap-2"
+              onClick={() => window.open('https://leetcode.com/contest/', '_blank')}
+              className="flex-1 bg-[#3A3A3D] hover:bg-[#4A4A4D] text-white px-4 py-3 rounded-full font-medium transition-colors text-center flex items-center justify-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <path d="M14 2v6h6"/>
-                <path d="M16 13H8"/>
-                <path d="M16 17H8"/>
-                <path d="M10 9H8"/>
+                <path d="M10 14.66v1.626a2 2 0 0 1-.976 1.696A5 5 0 0 0 7 21.978"/>
+                <path d="M14 14.66v1.626a2 2 0 0 0 .976 1.696A5 5 0 0 1 17 21.978"/>
+                <path d="M18 9h1.5a1 1 0 0 0 0-5H18"/>
+                <path d="M4 22h16"/>
+                <path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z"/>
+                <path d="M6 9H4.5a1 1 0 0 1 0-5H6"/>
               </svg>
-              Sheet
+              {shouldShowLabels && <span>Contest</span>}
             </button>
-          ) : (
+          )}
+          {showStudyPlan && (
             <button
-              onClick={() => setShowDsaSheetInput(true)}
-              className="flex-1 bg-[#00bfff] hover:bg-[#33ccff] text-white px-4 py-3 rounded-full font-medium transition-colors text-center flex items-center justify-center gap-2"
+              onClick={() => window.open('https://leetcode.com/studyplan/', '_blank')}
+              className="flex-1 bg-[#8957e5] hover:bg-[#9768f8] text-white px-4 py-3 rounded-full font-medium transition-colors text-center flex items-center justify-center gap-2"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <path d="M14 2v6h6"/>
-                <path d="M16 13H8"/>
-                <path d="M16 17H8"/>
-                <path d="M10 9H8"/>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M19 9c0 1.45-.43 2.78-1.17 3.89a6.985 6.985 0 0 1-4.78 3.02c-.34.06-.69.09-1.05.09-.36 0-.71-.03-1.05-.09a6.985 6.985 0 0 1-4.78-3.02A6.968 6.968 0 0 1 5 9c0-3.87 3.13-7 7-7s7 3.13 7 7Z" stroke="#d9e3f0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                <path d="m21.25 18.47-1.65.39c-.37.09-.66.37-.74.74l-.35 1.47a1 1 0 0 1-1.74.41L12 16l-4.77 5.49a1 1 0 0 1-1.74-.41l-.35-1.47a.996.996 0 0 0-.74-.74l-1.65-.39a1.003 1.003 0 0 1-.48-1.68l3.9-3.9a6.985 6.985 0 0 0 4.78 3.02c.34.06.69.09 1.05.09.36 0 .71-.03 1.05-.09 1.99-.29 3.7-1.42 4.78-3.02l3.9 3.9c.55.54.28 1.49-.48 1.67ZM12.58 5.98l.59 1.18c.08.16.29.32.48.35l1.07.18c.68.11.84.61.35 1.1l-.83.83c-.14.14-.22.41-.17.61l.24 1.03c.19.81-.24 1.13-.96.7l-1-.59a.701.701 0 0 0-.66 0l-1 .59c-.72.42-1.15.11-.96-.7l.24-1.03c.04-.19-.03-.47-.17-.61l-.83-.83c-.49-.49-.33-.98.35-1.1l1.07-.18c.18-.03.39-.19.47-.35l.59-1.18c.29-.64.81-.64 1.13 0Z" stroke="#d9e3f0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
               </svg>
-              
+              {shouldShowLabels && <span>Plan</span>}
             </button>
+          )}
+          {showDaily && (
+            <button
+              onClick={handleDailyProblemClick}
+              className="flex-1 bg-[#c30052] hover:bg-[#d40058] text-white px-4 py-3 rounded-full font-medium transition-colors text-center flex items-center justify-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 2v3M16 2v3M3.5 9.09h17M22 19c0 .75-.21 1.46-.58 2.06A3.97 3.97 0 0 1 18 23c-1.01 0-1.93-.37-2.63-1-.31-.26-.58-.58-.79-.94A3.92 3.92 0 0 1 14 19c0-2.21 1.79-4 4-4 1.2 0 2.27.53 3 1.36A4 4 0 0 1 22 19Z" stroke="#d9e3f0" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"></path><path d="m16.44 19 .99.99 2.13-1.97" stroke="#d9e3f0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M21 8.5v7.86c-.73-.83-1.8-1.36-3-1.36-2.21 0-4 1.79-4 4 0 .75.21 1.46.58 2.06.21.36.48.68.79.94H8c-3.5 0-5-2-5-5V8.5c0-3 1.5-5 5-5h8c3.5 0 5 2 5 5Z" stroke="#d9e3f0" stroke-width="1.6" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"></path><path d="M11.995 13.7h.01M8.294 13.7h.01M8.294 16.7h.01" stroke="#d9e3f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              {shouldShowLabels && <span>Daily</span>}
+            </button>
+          )}
+          {showSheet && (
+            dsaSheetUrl ? (
+              <button
+                onClick={() => window.open(dsaSheetUrl, '_blank')}
+                className="flex-1 bg-[#00bfff] hover:bg-[#33ccff] text-white px-4 py-3 rounded-full font-medium transition-colors text-center flex items-center justify-center gap-2"
+              >
+               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8.75 3.5V2c0-.41-.34-.75-.75-.75s-.75.34-.75.75v1.56c.25-.03.48-.06.75-.06h.75ZM16.75 3.56V2c0-.41-.34-.75-.75-.75s-.75.34-.75.75v1.5H16c.27 0 .5.03.75.06Z" fill="#d9e3f0"></path><path d="M16.75 3.56V5c0 .41-.34.75-.75.75s-.75-.34-.75-.75V3.5h-6.5V5c0 .41-.34.75-.75.75s-.75-.34-.75-.75V3.56C4.3 3.83 3 5.73 3 8.5V17c0 3 1.5 5 5 5h8c3.5 0 5-2 5-5V8.5c0-2.77-1.3-4.67-4.25-4.94ZM12 16.75H8c-.41 0-.75-.34-.75-.75s.34-.75.75-.75h4c.41 0 .75.34.75.75s-.34.75-.75.75Zm4-5H8c-.41 0-.75-.34-.75-.75s.34-.75.75-.75h8c.41 0 .75.34.75.75s-.34.75-.75.75Z" fill="#d9e3f0"></path></svg>
+                {shouldShowLabels && <span>Sheet</span>}
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowDsaSheetInput(true)}
+                className="flex-1 bg-[#00bfff] hover:bg-[#33ccff] text-white px-4 py-3 rounded-full font-medium transition-colors text-center flex items-center justify-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <path d="M14 2v6h6"/>
+                  <path d="M12 18v-6"/>
+                  <path d="M9 15h6"/>
+                </svg>
+                {shouldShowLabels && <span>Add Sheet</span>}
+              </button>
+            )
           )}
 
           {/* Settings Button  */}
-        <button 
-          onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-          className=" bg-zinc-700 flex-1 flex items-center justify-center text-white/70 hover:text-white transition-colors p-1.5 rounded-full hover:bg-white/10"
-          aria-label="Settings"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-        </button>
+          <button 
+            onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+            className=" bg-zinc-700 w-fit flex items-center justify-center text-white/70 hover:text-white transition-colors p-1 px-4 rounded-full hover:bg-white/10"
+            aria-label="Settings"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
 
         {/* Settings Dropdown Menu */}
         {showSettingsMenu && (
-          <div className=" absolute top-10 right-2 z-20 bg-zinc-900 rounded-lg shadow-lg border border-zinc-700 p-2 w-48 transition-all">
+          <div className="absolute top-10 right-2 z-20 bg-zinc-900 rounded-lg shadow-lg border border-zinc-700 p-2 w-60 transition-all" ref={settingsMenuRef}>
             <div className="flex flex-col gap-1.5">
+              {/* Button Visibility Toggles */}
+              <div className="border-b border-zinc-700 pb-2 mb-1">
+                <p className="text-xs text-white/60 mb-2 px-2">Button Visibility</p>
+                
+                <div className="flex items-center justify-between px-2 py-1.5 hover:bg-zinc-800 rounded transition-colors" onClick={() => toggleButtonVisibility(LEETCODE_SHOW_CONTEST_KEY, showContest, setShowContest)}>
+                  <label className="text-sm text-white/80 cursor-pointer flex-1">Contest</label>
+                  <div 
+                    className="relative inline-block w-10 align-middle cursor-pointer"
+                    onClick={() => toggleButtonVisibility(LEETCODE_SHOW_CONTEST_KEY, showContest, setShowContest)}
+                  >
+                    <input 
+                      type="checkbox" 
+                      id="contestToggle" 
+                      className="sr-only" 
+                      checked={showContest}
+                      readOnly
+                    />
+                    <div className={`block w-10 h-6 rounded-full ${showContest ? 'bg-[#3A3A3D]' : 'bg-zinc-600'}`}></div>
+                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${showContest ? 'transform translate-x-4' : ''}`}></div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between px-2 py-1.5 hover:bg-zinc-800 rounded transition-colors" onClick={() => toggleButtonVisibility(LEETCODE_SHOW_STUDY_PLAN_KEY, showStudyPlan, setShowStudyPlan)}>
+                  <label className="text-sm text-white/80 cursor-pointer flex-1">Study Plan</label>
+                  <div 
+                    className="relative inline-block w-10 align-middle cursor-pointer"
+                    onClick={() => toggleButtonVisibility(LEETCODE_SHOW_STUDY_PLAN_KEY, showStudyPlan, setShowStudyPlan)}
+                  >
+                    <input 
+                      type="checkbox" 
+                      id="studyPlanToggle" 
+                      className="sr-only" 
+                      checked={showStudyPlan}
+                      readOnly
+                    />
+                    <div className={`block w-10 h-6 rounded-full ${showStudyPlan ? 'bg-[#8957e5]' : 'bg-zinc-600'}`}></div>
+                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${showStudyPlan ? 'transform translate-x-4' : ''}`}></div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between px-2 py-1.5 hover:bg-zinc-800 rounded transition-colors" onClick={() => toggleButtonVisibility(LEETCODE_SHOW_DAILY_KEY, showDaily, setShowDaily)}>
+                  <label className="text-sm text-white/80 cursor-pointer flex-1">Daily Problem</label>
+                  <div 
+                    className="relative inline-block w-10 align-middle cursor-pointer"
+                    onClick={() => toggleButtonVisibility(LEETCODE_SHOW_DAILY_KEY, showDaily, setShowDaily)}
+                  >
+                    <input 
+                      type="checkbox" 
+                      id="dailyToggle" 
+                      className="sr-only" 
+                      checked={showDaily}
+                      readOnly
+                    />
+                    <div className={`block w-10 h-6 rounded-full ${showDaily ? 'bg-[#c30052]' : 'bg-zinc-600'}`}></div>
+                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${showDaily ? 'transform translate-x-4' : ''}`}></div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between px-2 py-1.5 hover:bg-zinc-800 rounded transition-colors" onClick={() => toggleButtonVisibility(LEETCODE_SHOW_SHEET_KEY, showSheet, setShowSheet)}>
+                  <label className="text-sm text-white/80 cursor-pointer flex-1">Sheet</label>
+                  <div 
+                    className="relative inline-block w-10 align-middle cursor-pointer"
+                    onClick={() => toggleButtonVisibility(LEETCODE_SHOW_SHEET_KEY, showSheet, setShowSheet)}
+                  >
+                    <input 
+                      type="checkbox" 
+                      id="sheetToggle" 
+                      className="sr-only" 
+                      checked={showSheet}
+                      readOnly
+                    />
+                    <div className={`block w-10 h-6 rounded-full ${showSheet ? 'bg-[#00bfff]' : 'bg-zinc-600'}`}></div>
+                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${showSheet ? 'transform translate-x-4' : ''}`}></div>
+                  </div>
+                </div>
+              </div>
+              
               <button 
                 onClick={() => { 
                   setShowSettingsMenu(false);
@@ -686,8 +843,6 @@ const LeetCodeWidget: React.FC = () => {
             </div>
           </div>
         )}
-
-        </div>
 
         {showDsaSheetInput && (
           <div className="fixed inset-0 bg-opacity-70 flex items-center justify-center z-50">

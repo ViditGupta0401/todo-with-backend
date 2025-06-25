@@ -29,11 +29,11 @@ import { usePopup } from './context/PopupContext';
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
 const LAST_SAVED_DATE_KEY = 'last-saved-date';
-const UPDATE_VERSION = '1.8.5'; // Change this on every update
+const UPDATE_VERSION = '1.8.7'; // Change this on every update
 const UPDATE_CHANGELOG = [
-  '📝 Users can now edit their schedules directly from the Upcoming Events widget.',
-  '🔗 You can add direct links in event descriptions, which are clickable.',
-  '✨ Improved update modal and bug fixes.',
+  '� Added toggle switches in LeetCodeWidget to show/hide specific action buttons.',
+  '🧩 Improved settings menu with better UI for toggling button visibility.',
+  '🛠️ Various UI improvements and bug fixes.',
 ];
 
 interface DailyData {
@@ -725,23 +725,6 @@ function App() {
     });
   };
 
-  const handleAddQuickLink = (link: { title: string; url: string }) => {
-    event({
-      action: 'add_quicklink',
-      category: 'QuickLinks',
-      label: link.title
-    });
-    const newQuickLink = {
-      id: Date.now().toString(),
-      title: link.title,
-      url: link.url.startsWith('http') ? link.url : `https://${link.url}`
-    };
-    const prev = JSON.parse(localStorage.getItem('quick-links') || '[]');
-    const updated = [...prev, newQuickLink];
-    localStorage.setItem('quick-links', JSON.stringify(updated));
-    setQuickLinksKey(k => k + 1);
-  };
-
   function performMigrations() {
     migrateWidgetLayouts();
     migrateTasks(STORAGE_KEY);
@@ -932,10 +915,20 @@ function App() {
                 window.dispatchEvent(eventAddedEvent);
               });
           }}
-          onAddQuickLink={handleAddQuickLink}
+          onAddQuickLink={(link) => {
+            const newQuickLink = {
+              id: Date.now().toString(),
+              title: link.title,
+              url: link.url.startsWith('http') ? link.url : `https://${link.url}`
+            };
+            const prev = JSON.parse(localStorage.getItem('quick-links') || '[]');
+            const updated = [...prev, newQuickLink];
+            localStorage.setItem('quick-links', JSON.stringify(updated));
+            setQuickLinksKey(k => k + 1);
+          }}
         />
 
-        <Dock />
+        <Dock appVersion={UPDATE_VERSION} />
       </div>
     </PomodoroSettingsProvider>
   );

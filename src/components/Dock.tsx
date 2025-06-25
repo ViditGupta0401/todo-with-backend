@@ -8,7 +8,12 @@ import { useTheme } from '../context/ThemeContext';
 import { useWidgetContext } from '../context/WidgetContext';
 import Guide from './Guide';
 
-const Dock: React.FC = () => {
+// Define props interface for the Dock component
+interface DockProps {
+  appVersion?: string; // Optional version parameter
+}
+
+const Dock: React.FC<DockProps> = ({ appVersion = "1.0.0" }) => {
   const { isEditingLayout, setIsEditingLayout, setShowWidgetSelector } = useWidgetContext();
   const { theme } = useTheme();
   const [showSettings, setShowSettings] = useState(false);
@@ -116,7 +121,7 @@ const Dock: React.FC = () => {
                 <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500 dark:text-gray-400">TodoTrack</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">v1.8.5</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">v{appVersion}</span>
                   </div>
                 </div>
               </div>

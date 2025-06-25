@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiX, FiGrid, FiLink, FiBarChart2, FiClock, FiCalendar, FiCoffee, FiCode } from 'react-icons/fi';
+import { FiX, FiGrid, FiLink, FiBarChart2, FiClock, FiCalendar, FiCoffee, FiCode, FiFileText } from 'react-icons/fi';
 import { useWidgetContext } from '../context/WidgetContext';
 
 // Define a type for widget templates that can be added to the screen
@@ -69,6 +69,13 @@ const availableWidgets: WidgetTemplate[] = [
     icon: <FiCode size={24} />,
     description: 'Track your LeetCode progress, streaks, and stats',
     defaultSize: { w: 2, h: 3 }
+  },
+  {
+    id: 'notes',
+    title: 'Notes',
+    icon: <FiFileText size={24} />,
+    description: 'Rich text editor for creating and organizing notes',
+    defaultSize: { w: 2, h: 4 }
   }
 ];
 

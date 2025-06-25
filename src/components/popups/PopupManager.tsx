@@ -11,8 +11,8 @@ import PomodoroSettingsPopup from './PomodoroSettingsPopup';
 import UpdateModal from './UpdateModal';
 
 interface PopupManagerProps {
-  onAddEvent: (event: { title: string; date: string; time: string; description?: string; color: string }) => void;
-  onAddQuickLink: (link: { title: string; url: string; icon?: string }) => void;
+  onAddEvent?: (event: { title: string; date: string; time: string; description?: string; color: string }) => void;
+  onAddQuickLink?: (link: { title: string; url: string; icon?: string }) => void;
 }
 
 const PopupManager: React.FC<PopupManagerProps> = ({ onAddEvent, onAddQuickLink }) => {
@@ -27,7 +27,7 @@ const PopupManager: React.FC<PopupManagerProps> = ({ onAddEvent, onAddQuickLink 
         title="Add Event"
         maxWidth="max-w-sm"
       >
-        <AddEventPopup onAdd={onAddEvent} />
+        <AddEventPopup onAdd={onAddEvent || (() => {})} />
       </Popup>
       
       {/* Add Quick Link Popup */}
@@ -37,7 +37,7 @@ const PopupManager: React.FC<PopupManagerProps> = ({ onAddEvent, onAddQuickLink 
         title="Add Quick Link"
         maxWidth="max-w-md"
       >
-        <AddQuickLinkPopup onAdd={onAddQuickLink} />
+        <AddQuickLinkPopup onAdd={onAddQuickLink || (() => {})} />
       </Popup>
       
       {/* User Guide Popup */}

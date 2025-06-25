@@ -1,7 +1,18 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { OutputData } from '@editorjs/editorjs';
+
+// Define a reusable Note interface
+export interface Note {
+  id: string;
+  title: string;
+  content: OutputData;
+  color: string;
+  createdAt: number;
+  updatedAt: number;
+}
 
 // Define popup types
-export type PopupType = 'addEvent' | 'addQuickLink' | 'userGuide' | 'dailyInfo' | 'dayDetails' | 'eventDetails' | 'pomodoroSettings' | 'updateInfo';
+export type PopupType = 'addEvent' | 'addQuickLink' | 'userGuide' | 'dailyInfo' | 'dayDetails' | 'eventDetails' | 'pomodoroSettings' | 'updateInfo' | 'noteEditor';
 
 // Define what data each popup type needs
 interface PopupData {
@@ -64,6 +75,10 @@ interface PopupData {
   updateInfo?: {
     version: string;
     changelog: string[];
+  };
+  noteEditor?: {
+    note: Note | null;
+    onSave: (note: Note) => void;
   };
 }
 
