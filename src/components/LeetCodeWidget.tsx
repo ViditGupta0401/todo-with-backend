@@ -708,7 +708,7 @@ const LeetCodeWidget: React.FC = () => {
                   <path d="M12 18v-6"/>
                   <path d="M9 15h6"/>
                 </svg>
-                {shouldShowLabels && <span>Add Sheet</span>}
+                {shouldShowLabels && <span>Add Url</span>}
               </button>
             )
           )}
