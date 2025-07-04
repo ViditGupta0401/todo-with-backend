@@ -341,7 +341,11 @@ export function TaskList({
   const [newTaskPriority, setNewTaskPriority] = React.useState<
     "high" | "medium" | "low"
   >("medium");
-  const [isBlurred, setIsBlurred] = React.useState(false); // Track blur state
+  const [isBlurred, setIsBlurred] = React.useState(() => {
+    // Load blur state from localStorage on initialization
+    const savedBlurState = localStorage.getItem('todo-blur-state');
+    return savedBlurState === 'true';
+  }); // Track blur state
 
   // Priority dot color
   const getPriorityDot = () => {
@@ -412,12 +416,22 @@ export function TaskList({
     }
   }, [editingId, tasks]);
 
+  // Save blur state to localStorage whenever it changes
+  React.useEffect(() => {
+    localStorage.setItem('todo-blur-state', isBlurred.toString());
+  }, [isBlurred]);
+
   // Global keyboard event handler for backtick key to toggle blur
   React.useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key === "`") {
         e.preventDefault();
-        setIsBlurred(prev => !prev);
+        setIsBlurred(prev => {
+          const newBlurState = !prev;
+          // Save to localStorage immediately
+          localStorage.setItem('todo-blur-state', newBlurState.toString());
+          return newBlurState;
+        });
       }
     };
 
