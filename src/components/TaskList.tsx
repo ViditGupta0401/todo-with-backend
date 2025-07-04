@@ -60,6 +60,7 @@ function SortableTaskItem({
   itemTextClassName = "",
   secondaryTextClassName = "",
   captionClassName = "",
+  isBlurred = false,
 }: {
   task: Task;
   onToggleTask: (id: string) => void;
@@ -72,6 +73,7 @@ function SortableTaskItem({
   itemTextClassName?: string;
   secondaryTextClassName?: string;
   captionClassName?: string;
+  isBlurred?: boolean;
 }) {
   const {
     attributes,
@@ -339,6 +341,7 @@ export function TaskList({
   const [newTaskPriority, setNewTaskPriority] = React.useState<
     "high" | "medium" | "low"
   >("medium");
+  const [isBlurred, setIsBlurred] = React.useState(false); // Track blur state
 
   // Priority dot color
   const getPriorityDot = () => {
@@ -409,6 +412,19 @@ export function TaskList({
     }
   }, [editingId, tasks]);
 
+  // Global keyboard event handler for backtick key to toggle blur
+  React.useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "`") {
+        e.preventDefault();
+        setIsBlurred(prev => !prev);
+      }
+    };
+
+    document.addEventListener("keydown", handleGlobalKeyDown);
+    return () => document.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -446,21 +462,32 @@ export function TaskList({
   ];
   return (
     <div
-      className="p-3 bg-zinc-800  rounded-3xl shadow-2xl w-full"
+      className="p-3 bg-zinc-800  rounded-3xl shadow-2xl w-full relative"
       // style={{ boxShadow: "box-shadow: rgba(0, 0, 0, 0.1) 0px 10px 50px;" }}
     >
+      {/* Blur overlay indicator */}
+      {isBlurred && (
+        <div className="absolute inset-0 z-30 bg-black/10 rounded-3xl flex items-center justify-center">
+          
+          <div className="bg-black/50 flex flex-col justify-center items-center text-slate-500 px-4 py-2 rounded-lg text-sm backdrop-blur-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"><path opacity=".4" d="M21.252 9.15a14.57 14.57 0 0 0-1.63-2.11l-3.77 3.77c.12.37.19.77.19 1.19 0 2.24-1.81 4.04-4.04 4.04-.42 0-.82-.07-1.19-.19l-3.46 3.46c1.46.82 3.04 1.25 4.65 1.25 1.78 0 3.51-.52 5.09-1.49 1.58-.98 3-2.41 4.16-4.23 1-1.56 1-4.12 0-5.69Z" fill="#d9e3f0"></path><path d="m14.02 9.98-4.04 4.04c-.51-.52-.84-1.24-.84-2.02 0-1.57 1.28-2.86 2.86-2.86.78 0 1.5.33 2.02.84Z" fill="#d9e3f0"></path><path opacity=".4" d="m18.25 5.75-3.39 3.39A3.986 3.986 0 0 0 12 7.96c-2.24 0-4.04 1.81-4.04 4.04 0 1.12.45 2.13 1.18 2.86l-3.38 3.39h-.01c-1.11-.9-2.13-2.05-3-3.41-1-1.57-1-4.12 0-5.69C3.91 7.33 5.33 5.9 6.91 4.92c1.58-.96 3.31-1.49 5.09-1.49 2.23 0 4.39.82 6.25 2.32Z" fill="#d9e3f0"></path><path d="M14.858 11.998c0 1.57-1.28 2.86-2.86 2.86-.06 0-.11 0-.17-.02l3.01-3.01c.02.06.02.11.02.17ZM21.769 2.229c-.3-.3-.79-.3-1.09 0l-18.45 18.46c-.3.3-.3.79 0 1.09a.758.758 0 0 0 1.08-.01l18.46-18.46c.31-.3.31-.78 0-1.08Z" fill="#d9e3f0"></path></svg>  Protected
+          </div>
+        </div>
+      )}
       <div className={clsx("flex items-center mb-2 justify-between z-10 top-0")}>
         <div className="flex items-center gap-3 w-full">
           <button
             className={clsx(
-              "px-6 py-2 rounded-3xl text-sm shadow-inner flex items-center gap-2 focus:outline-none border border-[#2A2A2A]",
+              "px-6 py-2 rounded-3xl text-sm shadow-inner flex items-center gap-2 focus:outline-none border border-[#2A2A2A] transition-all duration-300",
               theme === "dark"
                 ? "bg-zinc-900 text-[#ACACAD]"
                 : "bg-orange-600 text-white",
               "transition-colors",
-              showFilterDropdown ? "ring-2 ring-orange-700" : ""
+              showFilterDropdown ? "ring-2 ring-orange-700" : "",
+              isBlurred && "blur-sm"
             )}
             onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+            disabled={isBlurred}
           >
             {filterOptions.find((opt) => opt.value === filter)?.label || "All"}
             <svg
@@ -515,7 +542,10 @@ export function TaskList({
             </div>
           )}
           {/* Styled input field with dot and + button */}
-          <div className="flex items-center bg-[#18181c] rounded-3xl px-4 py-2 ml-2 flex-grow min-w-0 border border-transparent focus-within:ring-2 focus-within:ring-orange-700">
+          <div className={clsx(
+            "flex items-center bg-[#18181c] rounded-3xl px-4 py-2 ml-2 flex-grow min-w-0 border border-transparent focus-within:ring-2 focus-within:ring-orange-700 transition-all duration-300",
+            isBlurred && "blur-sm"
+          )}>
             <input
               type="text"
               className="flex-1 min-w-0 bg-transparent outline-none text-[#EDEDED] placeholder-[#ACACAD] text-base"
@@ -525,6 +555,7 @@ export function TaskList({
               onKeyDown={handleInputKeyDown}
               aria-label="Add new task"
               style={{ maxWidth: '100%' }}
+              disabled={isBlurred}
             />
             <span className={clsx("ml-2 w-3 h-3 rounded-full", getPriorityDot())}></span>
           </div>
@@ -551,7 +582,10 @@ export function TaskList({
             {" "}
             <AnimatedList
               as="div"
-              className="space-y-1"
+              className={clsx(
+                "space-y-1 transition-all duration-300",
+                isBlurred && "blur-md"
+              )}
               items={isManuallyReordered ? tasks : sortTasksByPriority(tasks)}
               itemKey={(task: Task) => task.id}
             >
@@ -569,6 +603,7 @@ export function TaskList({
                   itemTextClassName={itemTextClassName}
                   secondaryTextClassName={secondaryTextClassName}
                   captionClassName={captionClassName}
+                  isBlurred={isBlurred}
                 />
               )}
             </AnimatedList>
