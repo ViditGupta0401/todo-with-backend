@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useUser } from './UserContext';
+import { uploadWidgetsToSupabase } from '../utils/supabaseSync';
 
 interface WidgetContextType {
   activeWidgets: string[];
@@ -31,14 +33,16 @@ export const WidgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   const [isEditingLayout, setIsEditingLayout] = useState<boolean>(false);
   const [showWidgetSelector, setShowWidgetSelector] = useState<boolean>(false);
+  const { user, isGuest } = useUser();
   // Save active widgets to localStorage whenever they change
   useEffect(() => {
     try {
       localStorage.setItem('active-widgets', JSON.stringify(activeWidgets));
+      if (user && !isGuest) uploadWidgetsToSupabase(user.id, activeWidgets);
     } catch (error) {
       console.error('Error saving active widgets to localStorage:', error);
     }
-  }, [activeWidgets]);
+  }, [activeWidgets, user, isGuest]);
   
   return (
     <WidgetContext.Provider value={{

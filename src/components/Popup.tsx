@@ -40,7 +40,8 @@ const Popup: React.FC<PopupProps> = ({
         
         {showCloseButton && (
           <button
-            className="absolute top-3 right-3 text-gray-400 hover:text-white p-1.5 rounded-full hover:bg-gray-700/50 transition-colors"
+            className="absolute top-3 right-3 z-60 text-gray-400 hover:text-white p-1.5 rounded-full hover:bg-gray-700/50 transition-colors shadow-[0_2px_8px_0_rgba(255,255,255,0.25)]"
+            style={{ zIndex: 60 }}
             onClick={onClose}
           >
             <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">

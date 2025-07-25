@@ -12,7 +12,7 @@ export interface Note {
 }
 
 // Define popup types
-export type PopupType = 'addEvent' | 'addQuickLink' | 'userGuide' | 'dailyInfo' | 'dayDetails' | 'eventDetails' | 'pomodoroSettings' | 'updateInfo' | 'noteEditor';
+export type PopupType = 'addEvent' | 'addQuickLink' | 'userGuide' | 'dailyInfo' | 'dayDetails' | 'eventDetails' | 'pomodoroSettings' | 'updateInfo' | 'noteEditor' | 'auth';
 
 // Define what data each popup type needs
 interface PopupData {

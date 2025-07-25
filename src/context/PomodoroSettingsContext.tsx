@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { useUser } from './UserContext';
+import { uploadPomodoroSettingsToSupabase } from '../utils/supabaseSync';
 
 export interface PomodoroSettings {
   focusDuration: number;
@@ -47,10 +49,13 @@ export const PomodoroSettingsProvider: React.FC<{ children: ReactNode }> = ({ ch
     return saved ? JSON.parse(saved) : defaultSettings;
   });
 
+  const { user, isGuest } = useUser();
+
   const updateSetting = (key: keyof PomodoroSettings, value: number | string) => {
     setSettings(prev => {
       const updated = { ...prev, [key]: value };
       localStorage.setItem('pomodoroSettings', JSON.stringify(updated));
+      if (user && !isGuest) uploadPomodoroSettingsToSupabase(user.id, updated);
       return updated;
     });
   };

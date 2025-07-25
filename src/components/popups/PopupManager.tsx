@@ -9,6 +9,8 @@ import DayDetailsPopup from './DayDetailsPopup';
 import EventDetailsPopup from './EventDetailsPopup';
 import PomodoroSettingsPopup from './PomodoroSettingsPopup';
 import UpdateModal from './UpdateModal';
+import AuthPopup from './AuthPopup';
+import StoreDataCard from '../StoreDataCard';
 
 interface PopupManagerProps {
   onAddEvent?: (event: { title: string; date: string; time: string; description?: string; color: string }) => void;
@@ -119,6 +121,16 @@ const PopupManager: React.FC<PopupManagerProps> = ({ onAddEvent, onAddQuickLink 
           ]}
         />
       </Popup>
+
+      {/* Auth Popup */}
+      <AuthPopup
+        isOpen={activePopup === 'auth'}
+        onClose={closePopup}
+      />
+      {/* Sign Up Popup */}
+      {activePopup === 'signup' && (
+        <StoreDataCard onClose={closePopup} />
+      )}
     </>
   );
 };

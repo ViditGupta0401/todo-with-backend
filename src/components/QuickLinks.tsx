@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { usePopup } from '../context/PopupContext';
+import { useUser } from '../context/UserContext';
+import { uploadQuickLinksToSupabase } from '../utils/supabaseSync';
 
 interface QuickLink {
   id: string;
@@ -15,6 +17,7 @@ export const QuickLinks: React.FC = () => {
   });
   
   const { openPopup } = usePopup();
+  const { user, isGuest } = useUser();
 
   // Update links when localStorage changes
   useEffect(() => {
@@ -31,6 +34,10 @@ export const QuickLinks: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (user && !isGuest) uploadQuickLinksToSupabase(user.id, links);
+  }, [links, user, isGuest]);
+
   const getFaviconUrl = (url: string) => {
     try {
       const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
@@ -44,6 +51,7 @@ export const QuickLinks: React.FC = () => {
     setLinks(prev => {
       const updated = prev.filter(link => link.id !== id);
       localStorage.setItem('quick-links', JSON.stringify(updated));
+      if (user && !isGuest) uploadQuickLinksToSupabase(user.id, updated);
       return updated;
     });
   };

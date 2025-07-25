@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { format, isTomorrow, isToday, differenceInDays, parseISO, isAfter } from 'date-fns';
 import { usePopup } from '../context/PopupContext';
 import {motion} from 'framer-motion'
+import { useUser } from '../context/UserContext';
+import { uploadEventsToSupabase, downloadEventsFromSupabase } from '../utils/supabaseSync';
 
 // Storage key for localStorage - shared between components
 export const EVENTS_STORAGE_KEY = 'upcoming-events-data';
@@ -38,8 +40,14 @@ const UpcomingEventsWidget: React.FC = () => {
     }
     return savedEvents ? JSON.parse(savedEvents) : [];
   });  const { openPopup } = usePopup();
+  const { user, isGuest } = useUser();
   const [maxHeight, setMaxHeight] = useState(400); // default height
   const widgetRef = useRef<HTMLDivElement>(null);
+  // Pagination state for Supabase events
+  const [hasMoreEvents, setHasMoreEvents] = useState(true);
+  const [loadingMoreEvents, setLoadingMoreEvents] = useState(false);
+  const eventPageRef = useRef(0);
+  const observerRef = useRef<HTMLDivElement | null>(null);
 
   // Group events by date (Today, Tomorrow, or date string)
   const groupedEvents = useMemo(() => {
@@ -83,11 +91,15 @@ const UpcomingEventsWidget: React.FC = () => {
       .then(({ deleteEvent }) => {
         deleteEvent(id);
         // Event listeners will update the UI automatically
+        const updatedEvents = events.filter(event => event.id !== id);
+        if (user && !isGuest) uploadEventsToSupabase(user.id, updatedEvents);
       })
       .catch(err => {
         console.error('Error deleting event:', err);
         // Fallback to direct state manipulation if import fails
-        setEvents(events.filter(event => event.id !== id));
+        const updatedEvents = events.filter(event => event.id !== id);
+        setEvents(updatedEvents);
+        if (user && !isGuest) uploadEventsToSupabase(user.id, updatedEvents);
       });
   }
 
@@ -107,10 +119,11 @@ const UpcomingEventsWidget: React.FC = () => {
   useEffect(() => {
     try {
       localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(events));
+      if (user && !isGuest) uploadEventsToSupabase(user.id, events);
     } catch (error) {
       console.error('Error saving events to localStorage:', error);
     }
-  }, [events]);
+  }, [events, user, isGuest]);
     // Listen for custom 'event-added' event from App.tsx or other components
   useEffect(() => {
     // Define a custom event handler for 'event-added'
@@ -161,6 +174,54 @@ const UpcomingEventsWidget: React.FC = () => {
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
+
+  // Lazy load events from Supabase for logged-in users
+  useEffect(() => {
+    if (!user || isGuest) return;
+    let cancelled = false;
+    const fetchInitialEvents = async () => {
+      setLoadingMoreEvents(true);
+      const page = 0;
+      const pageSize = 50;
+      const data = await downloadEventsFromSupabase(user.id, { limit: pageSize, offset: page * pageSize });
+      if (!cancelled) {
+        setEvents(data);
+        setHasMoreEvents(data.length === pageSize);
+        eventPageRef.current = 1;
+        setLoadingMoreEvents(false);
+      }
+    };
+    fetchInitialEvents();
+    return () => { cancelled = true; };
+  }, [user, isGuest]);
+
+  // Infinite scroll: load more events when observer is visible
+  useEffect(() => {
+    if (!user || isGuest) return;
+    if (!hasMoreEvents) return;
+    if (!observerRef.current) return;
+    let cancelled = false;
+    const handleIntersect = async (entries: IntersectionObserverEntry[]) => {
+      if (entries[0].isIntersecting && !loadingMoreEvents && hasMoreEvents) {
+        setLoadingMoreEvents(true);
+        const pageSize = 50;
+        const page = eventPageRef.current;
+        const data = await downloadEventsFromSupabase(user.id, { limit: pageSize, offset: page * pageSize });
+        if (!cancelled) {
+          setEvents(prev => [...prev, ...data]);
+          setHasMoreEvents(data.length === pageSize);
+          eventPageRef.current = page + 1;
+          setLoadingMoreEvents(false);
+        }
+      }
+    };
+    const observer = new window.IntersectionObserver(handleIntersect, { threshold: 1 });
+    observer.observe(observerRef.current);
+    return () => {
+      observer.disconnect();
+      cancelled = true;
+    };
+  }, [user, isGuest, hasMoreEvents, loadingMoreEvents]);
 
   useEffect(() => {
     if (widgetRef.current) {
@@ -270,6 +331,8 @@ const UpcomingEventsWidget: React.FC = () => {
             </div>
           </div>
         ))}      </div>
+      {/* Invisible observer for lazy loading events */}
+      <div ref={observerRef} style={{ position: 'absolute', width: 1, height: 1, left: -9999, bottom: 0 }} />
     </motion.div>
   );
 };

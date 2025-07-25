@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useUser } from './UserContext';
+import { uploadThemeToSupabase } from '../utils/supabaseSync';
 
 type Theme = 'dark' | 'light';
 
@@ -25,6 +27,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return 'dark';
   });
 
+  const { user, isGuest } = useUser();
+
   // Update html class and localStorage when theme changes
   useEffect(() => {
     if (theme === 'dark') {
@@ -33,7 +37,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       document.documentElement.classList.remove('dark');
     }
     localStorage.setItem('theme', theme);
-  }, [theme]);
+    if (user && !isGuest) uploadThemeToSupabase(user.id, theme);
+  }, [theme, user, isGuest]);
 
   const toggleTheme = () => {
     setTheme(prevTheme => (prevTheme === 'dark' ? 'light' : 'dark'));

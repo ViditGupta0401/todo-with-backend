@@ -25,6 +25,11 @@ import welcomePenguin from './penguin images/welcome.png';
 import { RoughNotation, RoughNotationGroup } from 'react-rough-notation';
 import { pageview, event } from './utils/analytics';
 import { usePopup } from './context/PopupContext';
+import { supabase } from './utils/supabaseClient';
+import { UserProvider } from './context/UserContext';
+import { useUser } from './context/UserContext';
+import { uploadTasksToSupabase, downloadTasksFromSupabase } from './utils/supabaseSync';
+import StoreDataCard from './components/StoreDataCard';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
@@ -49,6 +54,10 @@ interface DailyData {
 
 function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [hasMoreTasks, setHasMoreTasks] = useState(true);
+  const [loadingMoreTasks, setLoadingMoreTasks] = useState(false);
+  const taskPageRef = useRef(0);
+  const observerRef = useRef<HTMLDivElement | null>(null);
   const isInitialRender = useRef(true);
   
   const currentDateRef = useRef<string>(format(new Date(), 'yyyy-MM-dd'));
@@ -70,6 +79,7 @@ function App() {
   const { theme } = useTheme();
   const [showBMI, setShowBMI] = useState<boolean>(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState<boolean>(false);
+  const [showSignUpPopup, setShowSignUpPopup] = useState(false);
   
   const {
     activeWidgets,
@@ -78,7 +88,8 @@ function App() {
   } = useWidgetContext();
   
   const [quickLinksKey, setQuickLinksKey] = useState(0);
-  const { openPopup } = usePopup();
+  const { openPopup, activePopup, closePopup } = usePopup();
+  const { user, isGuest } = useUser();
 
   const updateDailyData = (currentTasks: Task[], isInitializing = false) => {
     const now = new Date();
@@ -528,7 +539,16 @@ function App() {
     
     const updatedTasks = [newTask, ...tasks];
     setTasks(updatedTasks);
-    
+    if (user && !isGuest) {
+      uploadTasksToSupabase(user.id, updatedTasks);
+      // Immediate upload for persistence
+      supabase.from('tasks').delete().eq('user_id', user.id).then(() => {
+        if (updatedTasks.length > 0) {
+          supabase.from('tasks').insert(updatedTasks.map(t => ({ ...t, user_id: user.id })));
+        }
+      });
+    }
+    if (!user || isGuest) localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
     updateDailyData(updatedTasks, false);
   };
 
@@ -550,7 +570,15 @@ function App() {
         }
         return task;
       });
-
+      if (user && !isGuest) {
+        uploadTasksToSupabase(user.id, updatedTasks);
+        supabase.from('tasks').delete().eq('user_id', user.id).then(() => {
+          if (updatedTasks.length > 0) {
+            supabase.from('tasks').insert(updatedTasks.map(t => ({ ...t, user_id: user.id })));
+          }
+        });
+      }
+      if (!user || isGuest) localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
       updateDailyData(updatedTasks, false);
       
       return updatedTasks;
@@ -560,19 +588,46 @@ function App() {
   const deleteTask = (id: string) => {
     const updatedTasks = tasks.filter(task => task.id !== id);
     setTasks(updatedTasks);
-    
+    if (user && !isGuest) {
+      uploadTasksToSupabase(user.id, updatedTasks);
+      supabase.from('tasks').delete().eq('user_id', user.id).then(() => {
+        if (updatedTasks.length > 0) {
+          supabase.from('tasks').insert(updatedTasks.map(t => ({ ...t, user_id: user.id })));
+        }
+      });
+    }
+    if (!user || isGuest) localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
     updateDailyData(updatedTasks, false);
   };
 
   const updateTask = (id: string, text: string) => {
     if (!text.trim()) return;
     
-    setTasks(tasks.map(task =>
+    const updatedTasks = tasks.map(task =>
       task.id === id ? { ...task, text: text.trim() } : task
-    ));
+    );
+    setTasks(updatedTasks);
+    if (user && !isGuest) {
+      uploadTasksToSupabase(user.id, updatedTasks);
+      supabase.from('tasks').delete().eq('user_id', user.id).then(() => {
+        if (updatedTasks.length > 0) {
+          supabase.from('tasks').insert(updatedTasks.map(t => ({ ...t, user_id: user.id })));
+        }
+      });
+    }
+    if (!user || isGuest) localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
   };
   const reorderTasks = (newTasks: Task[]) => {
     setTasks(newTasks);
+    if (user && !isGuest) {
+      uploadTasksToSupabase(user.id, newTasks);
+      supabase.from('tasks').delete().eq('user_id', user.id).then(() => {
+        if (newTasks.length > 0) {
+          supabase.from('tasks').insert(newTasks.map(t => ({ ...t, user_id: user.id })));
+        }
+      });
+    }
+    if (!user || isGuest) localStorage.setItem(STORAGE_KEY, JSON.stringify(newTasks));
   };
   
   const widgetDefinitions = {
@@ -846,11 +901,91 @@ function App() {
     if (lastSeenVersion !== UPDATE_VERSION) {
       openPopup('updateInfo', { version: UPDATE_VERSION, changelog: UPDATE_CHANGELOG });
     }
-  }, [openPopup]);
+    // Only run this effect once on mount
+    // eslint-disable-next-line
+  }, []);
+
+  // Automatically show auth popup for new/incognito users, but only if not already open
+  useEffect(() => {
+    if (!user && !isGuest && activePopup !== 'auth') {
+      openPopup('auth');
+    }
+  }, [user, isGuest, openPopup, activePopup]);
+
+  // Automatically close the auth popup when the user becomes authenticated (including after OAuth login).
+  useEffect(() => {
+    if (user && activePopup === 'auth') {
+      closePopup();
+    }
+  }, [user, activePopup, closePopup]);
+
+  // Lazy load tasks from Supabase for logged-in users
+  useEffect(() => {
+    if (!user || isGuest) return;
+    let cancelled = false;
+    const fetchInitialTasks = async () => {
+      setLoadingMoreTasks(true);
+      const page = 0;
+      const pageSize = 50;
+      const data = await downloadTasksFromSupabase(user.id, { limit: pageSize, offset: page * pageSize });
+      if (!cancelled) {
+        setTasks(data);
+        setHasMoreTasks(data.length === pageSize);
+        taskPageRef.current = 1;
+        setLoadingMoreTasks(false);
+      }
+    };
+    fetchInitialTasks();
+    return () => { cancelled = true; };
+  }, [user, isGuest]);
+
+  // Infinite scroll: load more tasks when observer is visible
+  useEffect(() => {
+    if (!user || isGuest) return;
+    if (!hasMoreTasks) return;
+    if (!observerRef.current) return;
+    let cancelled = false;
+    const handleIntersect = async (entries: IntersectionObserverEntry[]) => {
+      if (entries[0].isIntersecting && !loadingMoreTasks && hasMoreTasks) {
+        setLoadingMoreTasks(true);
+        const pageSize = 50;
+        const page = taskPageRef.current;
+        const data = await downloadTasksFromSupabase(user.id, { limit: pageSize, offset: page * pageSize });
+        if (!cancelled) {
+          setTasks(prev => [...prev, ...data]);
+          setHasMoreTasks(data.length === pageSize);
+          taskPageRef.current = page + 1;
+          setLoadingMoreTasks(false);
+        }
+      }
+    };
+    const observer = new window.IntersectionObserver(handleIntersect, { threshold: 1 });
+    observer.observe(observerRef.current);
+    return () => {
+      observer.disconnect();
+      cancelled = true;
+    };
+  }, [user, isGuest, hasMoreTasks, loadingMoreTasks]);
 
   return (
     <PomodoroSettingsProvider>
       <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
+        {/* Hamburger button for guest mode */}
+        {isGuest && (
+          <button
+            className="fixed top-4 right-4 z-[9999] p-2 rounded-lg bg-gradient-to-tr from-cyan-400 to-cyan-600 hover:from-cyan-500 hover:to-cyan-700 text-white shadow-lg focus:outline-none focus-visible:ring-4 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+            onClick={() => openPopup('signup')}
+            aria-label="Open sign up popup"
+            tabIndex={0}
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="4" y1="6" x2="20" y2="6" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+          </button>
+        )}
+        {/* Remove direct rendering of StoreDataCard */}
         <header className="relative z-50 pt-4 pb-16">
           {widgets.length > 0 ? (
             <WidgetManager 
@@ -929,6 +1064,8 @@ function App() {
         />
 
         <Dock appVersion={UPDATE_VERSION} />
+        {/* Invisible observer for lazy loading tasks */}
+        <div ref={observerRef} style={{ position: 'absolute', width: 1, height: 1, left: -9999, bottom: 0 }} />
       </div>
     </PomodoroSettingsProvider>
   );
