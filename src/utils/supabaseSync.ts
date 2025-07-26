@@ -176,6 +176,13 @@ export const downloadPomodoroSettingsFromSupabase = async (user_id: string) => {
   return data?.settings || {};
 };
 
+// --- PROFILES ---
+export const downloadProfileFromSupabase = async (user_id: string) => {
+  if (!user_id) return null;
+  const { data } = await supabase.from('profiles').select('*').eq('id', user_id).single();
+  return data || null;
+};
+
 // --- MIGRATION ---
 export const migrateLocalDataToSupabase = async (user_id: string) => {
   await uploadTasksToSupabase(user_id, getLocalTasks());

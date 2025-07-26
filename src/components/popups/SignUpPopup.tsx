@@ -16,10 +16,24 @@ const SignUpPopup: React.FC<SignUpPopupProps> = ({ isOpen, onClose }) => {
   const [error, setError] = useState<string | null>(null);
 
   const handleGoogle = async () => {
+    console.log('Google button clicked');
     setLoading(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
-    if (error) setError(error.message);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+      if (error) {
+        setError(error.message || 'Google sign-in failed.');
+      } else {
+        // If the popup is blocked, show a user-friendly error
+        setTimeout(() => {
+          if (!window.opener && !window.closed) {
+            setError('Popup was blocked. Please allow popups and try again.');
+          }
+        }, 2000);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Google sign-in failed.');
+    }
     setLoading(false);
   };
   const handleGitHub = async () => {
@@ -52,7 +66,8 @@ const SignUpPopup: React.FC<SignUpPopupProps> = ({ isOpen, onClose }) => {
       <div className="relative flex flex-col items-center justify-center p-8 rounded-3xl shadow-2xl bg-gradient-to-br from-white/30 via-white/10 to-cyan-200/10 dark:from-zinc-800/60 dark:via-zinc-900/40 dark:to-cyan-900/10 backdrop-blur-2xl border border-white/30 min-w-[340px] animate-auth-popin group focus-within:scale-105 focus-within:shadow-2xl transition-all duration-300" style={{ boxShadow: '0 8px 40px 0 rgba(6,182,212,0.18), 0 1.5px 8px 0 rgba(0,0,0,0.10)' }}>
         <h2 className="text-3xl font-extrabold text-white mb-1 mt-2 drop-shadow-lg tracking-tight animate-auth-title-popin" style={{fontFamily:'inherit'}}>Create your account</h2>
         <p className="text-gray-200 text-base mb-7 font-medium animate-auth-subtitle-popin">Sign up to get started</p>
-        <button className="w-full py-3 rounded-2xl bg-gradient-to-tr from-white/30 to-cyan-300/20 hover:from-white/40 hover:to-cyan-400/30 text-white font-semibold shadow-lg transition-all duration-200 mb-2 border border-white/30 focus:outline-none focus:ring-2 focus:ring-cyan-400 animate-auth-btn-popin premium-btn-glow" onClick={handleGoogle} disabled={loading}>
+        <button className="w-full py-3 rounded-2xl bg-gradient-to-tr from-white/30 to-cyan-300/20 hover:from-white/40 hover:to-cyan-400/30 text-white font-semibold shadow-lg transition-all duration-200 mb-2 border border-white/30 focus:outline-none focus:ring-2 focus:ring-cyan-400 animate-auth-btn-popin premium-btn-glow flex items-center justify-center gap-2" onClick={handleGoogle} disabled={loading}>
+          {loading ? <span className="loader mr-2" /> : null}
           Continue with Google
         </button>
         <button className="w-full py-3 rounded-2xl bg-gradient-to-tr from-white/30 to-gray-700/20 hover:from-white/40 hover:to-gray-800/30 text-white font-semibold shadow-lg transition-all duration-200 mb-2 border border-white/30 focus:outline-none focus:ring-2 focus:ring-cyan-400 animate-auth-btn-popin premium-btn-glow" onClick={handleGitHub} disabled={loading}>
@@ -127,6 +142,19 @@ const SignUpPopup: React.FC<SignUpPopupProps> = ({ isOpen, onClose }) => {
         .premium-btn-glow:hover, .premium-btn-glow:focus {
           box-shadow: 0 0 0 4px #22d3ee55, 0 4px 24px #06b6d455;
           transition: box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .loader {
+          border: 2px solid #e0e0e0;
+          border-top: 2px solid #06b6d4;
+          border-radius: 50%;
+          width: 18px;
+          height: 18px;
+          animation: spin 0.8s linear infinite;
+          display: inline-block;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
       `}</style>
     </Popup>

@@ -26,10 +26,10 @@ import { RoughNotation, RoughNotationGroup } from 'react-rough-notation';
 import { pageview, event } from './utils/analytics';
 import { usePopup } from './context/PopupContext';
 import { supabase } from './utils/supabaseClient';
-import { UserProvider } from './context/UserContext';
-import { useUser } from './context/UserContext';
 import { uploadTasksToSupabase, downloadTasksFromSupabase } from './utils/supabaseSync';
-import StoreDataCard from './components/StoreDataCard';
+import { useNavigate, Routes, Route } from 'react-router-dom';
+import { uploadEventsToSupabase, uploadWidgetsToSupabase, uploadThemeToSupabase, uploadQuickLinksToSupabase, uploadPomodoroSettingsToSupabase } from './utils/supabaseSync';
+import { useUser } from './context/UserContext';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
 const DAILY_DATA_KEY = 'todo-tracker-daily-data';
@@ -53,6 +53,12 @@ interface DailyData {
 }
 
 function App() {
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showLogoutPopup, setShowLogoutPopup] = useState(false);
+  const [showDeletePopup, setShowDeletePopup] = useState(false);
+  const [forceShowAuthPopup, setForceShowAuthPopup] = useState(false); // NEW
+  const { user, isGuest, logout } = useUser();
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [hasMoreTasks, setHasMoreTasks] = useState(true);
   const [loadingMoreTasks, setLoadingMoreTasks] = useState(false);
@@ -89,7 +95,6 @@ function App() {
   
   const [quickLinksKey, setQuickLinksKey] = useState(0);
   const { openPopup, activePopup, closePopup } = usePopup();
-  const { user, isGuest } = useUser();
 
   const updateDailyData = (currentTasks: Task[], isInitializing = false) => {
     const now = new Date();
@@ -907,7 +912,8 @@ function App() {
 
   // Automatically show auth popup for new/incognito users, but only if not already open
   useEffect(() => {
-    if (!user && !isGuest && activePopup !== 'auth') {
+    // Only show auth popup if not on the get started page
+    if (!user && !isGuest && activePopup !== 'auth' && window.location.pathname !== '/get-started') {
       openPopup('auth');
     }
   }, [user, isGuest, openPopup, activePopup]);
@@ -967,10 +973,94 @@ function App() {
     };
   }, [user, isGuest, hasMoreTasks, loadingMoreTasks]);
 
+  // Logout functionality
+  const handleLogout = async () => {
+    setShowLogoutPopup(false);
+    setShowUserMenu(false);
+    // Clear all localStorage guest/user state
+    localStorage.removeItem('guest-mode');
+    // Log out from Supabase
+    await logout();
+    // Reset all local app state if needed (optionally clear tasks, widgets, etc. from localStorage)
+    // Redirect to get started and force auth popup
+    setForceShowAuthPopup(true);
+    navigate('/get-started', { replace: true });
+  };
+  // Delete account functionality
+  const handleDeleteAccount = async () => {
+    setShowDeletePopup(false);
+    setShowUserMenu(false);
+    if (!user) return;
+    const userId = user.id;
+    await supabase.from('tasks').delete().eq('user_id', userId);
+    await supabase.from('events').delete().eq('user_id', userId);
+    await supabase.from('widgets').delete().eq('user_id', userId);
+    await supabase.from('theme').delete().eq('user_id', userId);
+    await supabase.from('quick_links').delete().eq('user_id', userId);
+    await supabase.from('pomodoro_settings').delete().eq('user_id', userId);
+    await supabase.from('widget_layouts').delete().eq('user_id', userId);
+    await supabase.from('profiles').delete().eq('id', userId);
+    await supabase.auth.admin.deleteUser(userId);
+    // Clear all localStorage guest/user state
+    localStorage.removeItem('guest-mode');
+    await logout();
+    // Reset all local app state if needed (optionally clear tasks, widgets, etc. from localStorage)
+    setForceShowAuthPopup(true);
+    navigate('/get-started', { replace: true });
+  };
+
+  // On /get-started, open auth popup if forceShowAuthPopup is true or if not authenticated/guest
+  useEffect(() => {
+    if (window.location.pathname === '/get-started' && (!user && !isGuest) && (forceShowAuthPopup || activePopup !== 'auth')) {
+      openPopup('auth');
+      setForceShowAuthPopup(false);
+    }
+  }, [forceShowAuthPopup, openPopup, user, isGuest, activePopup]);
+
   return (
     <PomodoroSettingsProvider>
+      <Routes>
+        <Route
+          path="/get-started"
+          element={
+            <>
+              <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu flex flex-col items-center justify-center">
+                <main className="flex flex-col mt-10 items-center justify-center min-h-[60vh] text-center relative">
+                  <RoughNotationGroup show={true}>
+                    <h1 className="text-3xl md:text-6xl mb-5 sm:text-4xl tracking-tight space-x-2 font-bold text-slate-100">
+                      <RoughNotation type="crossed-off" color="#ef4444" strokeWidth={3} padding={2} show={true}> <span className='text-zinc-500' >Hold Off</span></RoughNotation> Smash <RoughNotation type="box" color="#06b6d4" strokeWidth={3} padding={4} show={true}><span className="text-cyan-400">tasks</span></RoughNotation>.
+                      Grind <RoughNotation type="underline" strokeWidth={5} color="#FFB75983" padding={[0,2]} show={true}><span className="text-[#F50056] ">LeetCode</span></RoughNotation>.
+                      <br />
+                      Plan your week. Keep your <span className="text-white">spark</span>.
+                    </h1>
+                  </RoughNotationGroup>
+                  <section className="text-base font-normal mt-4 text-gray-600 mb-8 max-w-xl mx-auto">
+                    <h2 className='text-xl text-gray-400 font-semibold'>Your Data, Your Nest</h2>
+                    <p>We don't peek. Everything you do is stored locally on your device<br />
+                    no clouds, no spying, just you and your productivity.</p>
+                  </section>
+                  <button
+                    className="bg-red-500 hover:bg-red-600 text-white font-semibold px-8 py-3 rounded-full text-lg shadow-lg transition-all duration-200"
+                    onClick={() => navigate('/')}
+                  >
+                    Get Started
+                  </button>
+                </main>
+                <div className="fixed bottom-8 left-8 flex flex-col items-center">
+                  <div className="bg-yellow-100 text-yellow-900 rounded-xl px-4 py-2 mb-2 font-bold shadow-lg">You're Our Favorite Chick Today!</div>
+                  <img src={welcomePenguin} alt="Chick" className="w-24 h-24" />
+                </div>
+              </div>
+              {/* Auth popup always open on get started page if not authenticated or forced */}
+              {(!user && !isGuest) && (
+                <PopupManager />
+              )}
+            </>
+          }
+        />
+        <Route path="/*" element={
       <div className="min-h-screen bg-zinc-900 text-gray-900 dark:text-white p-3 sm:p-4 md:p-6 lg:p-8 font-ubuntu">
-        {/* Hamburger button for guest mode */}
+            {/* Hamburger button for guest and authenticated users, popups, etc. */}
         {isGuest && (
           <button
             className="fixed top-4 right-4 z-[9999] p-2 rounded-lg bg-gradient-to-tr from-cyan-400 to-cyan-600 hover:from-cyan-500 hover:to-cyan-700 text-white shadow-lg focus:outline-none focus-visible:ring-4 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
@@ -985,6 +1075,69 @@ function App() {
             </svg>
           </button>
         )}
+            {/* Hamburger button for authenticated users (always visible) */}
+            {user && !isGuest && (
+              <div className="fixed top-4 right-4 z-[9999]">
+                <button
+                  className="p-2 rounded-lg bg-gradient-to-tr from-cyan-400 to-cyan-600 hover:from-cyan-500 hover:to-cyan-700 text-white shadow-lg focus:outline-none focus-visible:ring-4 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                  onClick={() => setShowUserMenu((prev) => !prev)}
+                  aria-label="Open user menu"
+                  tabIndex={0}
+                >
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="4" y1="6" x2="20" y2="6" />
+                    <line x1="4" y1="12" x2="20" y2="12" />
+                    <line x1="4" y1="18" x2="20" y2="18" />
+                  </svg>
+                </button>
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-zinc-800 border border-zinc-700 rounded-xl shadow-lg py-2 animate-fade-in text-white">
+                    <button className="w-full text-left px-4 py-2 hover:bg-zinc-700 transition-colors" onClick={() => { setShowLogoutPopup(true); setShowUserMenu(false); }}>Logout</button>
+                    <button className="w-full text-left px-4 py-2 hover:bg-red-600 transition-colors" onClick={() => { setShowDeletePopup(true); setShowUserMenu(false); }}>Delete Account</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Logout Confirmation Popup */}
+            {showLogoutPopup && (
+              <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                <div className="bg-zinc-900 rounded-2xl shadow-2xl p-8 w-full max-w-xs mx-auto border border-zinc-700 text-center relative">
+                  <button
+                    className="absolute top-3 right-3 z-60 text-gray-400 hover:text-white p-1.5 rounded-full hover:bg-gray-700/50 transition-colors shadow-[0_2px_8px_0_rgba(255,255,255,0.25)]"
+                    style={{ zIndex: 60 }}
+                    onClick={() => setShowLogoutPopup(false)}
+                    aria-label="Close logout popup"
+                  >
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                  <h3 className="text-xl font-semibold mb-4 text-white">Confirm Logout</h3>
+                  <p className="mb-6 text-gray-300">Are you sure you want to log out?</p>
+                  <button className="w-full py-3 rounded-2xl bg-cyan-400 text-white font-semibold shadow-lg transition-all duration-200 hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400" onClick={handleLogout}>Logout</button>
+                </div>
+              </div>
+            )}
+            {/* Delete Account Confirmation Popup */}
+            {showDeletePopup && (
+              <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                <div className="bg-zinc-900 rounded-2xl shadow-2xl p-8 w-full max-w-xs mx-auto border border-zinc-700 text-center relative">
+                  <button
+                    className="absolute top-3 right-3 z-60 text-gray-400 hover:text-white p-1.5 rounded-full hover:bg-gray-700/50 transition-colors shadow-[0_2px_8px_0_rgba(255,255,255,0.25)]"
+                    style={{ zIndex: 60 }}
+                    onClick={() => setShowDeletePopup(false)}
+                    aria-label="Close delete account popup"
+                  >
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                  <h3 className="text-xl font-semibold mb-4 text-white">Delete Account</h3>
+                  <p className="mb-6 text-gray-300">Are you sure you want to delete your account permanently? This cannot be undone.</p>
+                  <button className="w-full py-3 rounded-2xl bg-red-600 text-white font-semibold shadow-lg transition-all duration-200 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400" onClick={handleDeleteAccount}>Delete Account</button>
+                </div>
+              </div>
+            )}
         {/* Remove direct rendering of StoreDataCard */}
         <header className="relative z-50 pt-4 pb-16">
           {widgets.length > 0 ? (
@@ -1067,6 +1220,8 @@ function App() {
         {/* Invisible observer for lazy loading tasks */}
         <div ref={observerRef} style={{ position: 'absolute', width: 1, height: 1, left: -9999, bottom: 0 }} />
       </div>
+        } />
+      </Routes>
     </PomodoroSettingsProvider>
   );
 }
