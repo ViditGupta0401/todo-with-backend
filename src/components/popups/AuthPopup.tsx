@@ -10,37 +10,82 @@ interface AuthPopupProps {
 }
 
 const AuthPopup: React.FC<AuthPopupProps> = ({ isOpen, onClose }) => {
+  // Listen for show-signin event
+  React.useEffect(() => {
+    const handleShowSignIn = () => setIsSignUp(false);
+    document.addEventListener('show-signin', handleShowSignIn);
+    return () => document.removeEventListener('show-signin', handleShowSignIn);
+  }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(true); // Default to Sign Up for new users
   const { setGuest, refreshUser } = useUser();
   const [showSignUpPopup, setShowSignUpPopup] = useState(false);
 
   const handleProviderLogin = async (provider: 'google' | 'github') => {
     setLoading(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({ provider });
-    if (error) setError(error.message);
-    setLoading(false);
-    // Supabase will handle redirect and auth state change
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
+      
+      if (error) {
+        console.error('Provider login error:', error);
+        setError(error.message);
+        setLoading(false);
+      } else {
+        // Don't close or refresh here - let the redirect happen
+        console.log('Provider login initiated:', data);
+      }
+    } catch (err) {
+      console.error('Provider login error:', err);
+      setError('An error occurred during login. Please try again.');
+      setLoading(false);
+    }
   };
 
   const handleEmailLogin = async () => {
     setLoading(true);
     setError(null);
-    let result;
-    if (isSignUp) {
-      result = await supabase.auth.signUp({ email, password });
-    } else {
-      result = await supabase.auth.signInWithPassword({ email, password });
-    }
-    if (result.error) setError(result.error.message);
-    else {
-      await refreshUser();
-      onClose();
+    try {
+      let result;
+      if (isSignUp) {
+        result = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: window.location.origin
+          }
+        });
+      } else {
+        result = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+      }
+
+      if (result.error) {
+        console.error('Email auth error:', result.error);
+        setError(result.error.message);
+      } else {
+        console.log('Email auth successful:', result.data);
+        await refreshUser();
+        onClose();
+      }
+    } catch (err) {
+      console.error('Email auth error:', err);
+      setError('An error occurred during authentication. Please try again.');
     }
     setLoading(false);
   };
@@ -54,7 +99,7 @@ const AuthPopup: React.FC<AuthPopupProps> = ({ isOpen, onClose }) => {
     return <SignUpPopup isOpen={true} onClose={() => setShowSignUpPopup(false)} />;
   }
   return (
-    <Popup isOpen={isOpen} onClose={onClose} title={null} maxWidth="max-w-sm">
+    <Popup isOpen={isOpen} onClose={onClose} title="" maxWidth="max-w-sm">
       <div className="relative flex flex-col items-center justify-center p-8 rounded-3xl shadow-2xl bg-gradient-to-br from-white/30 via-white/10 to-cyan-200/10 dark:from-zinc-800/60 dark:via-zinc-900/40 dark:to-cyan-900/10 backdrop-blur-2xl border border-white/30 min-w-[340px] animate-auth-popin group focus-within:scale-105 focus-within:shadow-2xl transition-all duration-300" style={{ boxShadow: '0 8px 40px 0 rgba(6,182,212,0.18), 0 1.5px 8px 0 rgba(0,0,0,0.10)' }}>
         <h2 className="text-3xl font-extrabold text-white mb-1 mt-2 drop-shadow-lg tracking-tight animate-auth-title-popin" style={{fontFamily:'inherit'}}> {isSignUp ? 'Create your account' : 'Welcome back'} </h2>
         <p className="text-gray-200 text-base mb-7 font-medium animate-auth-subtitle-popin">{isSignUp ? 'Sign up to get started' : 'Sign in to your account'}</p>
@@ -140,7 +185,7 @@ const AuthPopup: React.FC<AuthPopupProps> = ({ isOpen, onClose }) => {
             {isSignUp ? 'Already have an account?' : "Don't have an account?"}
             <button
               className="ml-1 text-cyan-300 hover:underline focus:outline-none font-semibold"
-              onClick={() => setShowSignUpPopup(true)}
+              onClick={() => setIsSignUp(!isSignUp)}
               type="button"
             >
               {isSignUp ? 'Sign in' : 'Sign up'}

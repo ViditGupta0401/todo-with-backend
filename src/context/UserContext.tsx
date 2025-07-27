@@ -35,43 +35,82 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isGuest, setIsGuest] = useState<boolean>(false);
 
   useEffect(() => {
+    let isMounted = true;
+
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      setIsGuest(!user && !!localStorage.getItem('guest-mode'));
-      // If user just logged in, check for migration
-      if (user) {
+      try {
+        // Get user data
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (!isMounted) return;
+
+        if (error) {
+          console.error('Auth error:', error);
+          setUser(null);
+          setIsGuest(!!localStorage.getItem('guest-mode'));
+          return;
+        }
+
+        // Update user state
+        if (user) {
+          setUser(user);
+          setIsGuest(false);
+        } else {
+          setUser(null);
+          setIsGuest(!!localStorage.getItem('guest-mode'));
+          return;
+        }
+
+        // Only proceed with data loading if we have a user
+        if (user && isMounted) {
         // One-time migration for legacy users (optional, can be removed if not needed)
         // const supaTasks = await downloadTasksFromSupabase(user.id);
         // if (!supaTasks || supaTasks.length === 0) {
         //   await migrateLocalDataToSupabase(user.id);
         // }
-        // Always restore all data from Supabase
-        const all = await downloadAllDataFromSupabase(user.id);
-        setLocalTasks(all.tasks);
-        setLocalEvents(all.events);
-        setLocalActiveWidgets(all.widgets);
-        setLocalTheme(all.theme);
-        setLocalQuickLinks(all.quickLinks);
-        setLocalPomodoroSettings(all.pomodoroSettings);
-        // Check if profile exists
-        const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        if (!profile) {
-          // Try to get profile data from localStorage (set at sign up)
-          const pendingProfile = localStorage.getItem('pending-profile');
-          if (pendingProfile) {
-            const { name, email, dob } = JSON.parse(pendingProfile);
-            if (name && email && dob) {
-              await supabase.from('profiles').insert([{ id: user.id, name, email, dob }]);
-              localStorage.removeItem('pending-profile');
+          // Load user data from Supabase
+          const all = await downloadAllDataFromSupabase(user.id);
+          
+          if (all.tasks && Array.isArray(all.tasks)) {
+            setLocalTasks(all.tasks);
+            console.log('Tasks loaded successfully:', all.tasks.length);
+          }
+
+          if (all.events) setLocalEvents(all.events);
+          if (all.widgets) setLocalActiveWidgets(all.widgets);
+          if (all.theme) setLocalTheme(all.theme);
+          if (all.quickLinks) setLocalQuickLinks(all.quickLinks);
+          if (all.pomodoroSettings) setLocalPomodoroSettings(all.pomodoroSettings);
+
+          // Check and create profile if needed
+          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+          if (!profile) {
+            const pendingProfile = localStorage.getItem('pending-profile');
+            if (pendingProfile) {
+              const { name, email, dob } = JSON.parse(pendingProfile);
+              if (name && email && dob) {
+                await supabase.from('profiles').insert([{ id: user.id, name, email, dob }]);
+                localStorage.removeItem('pending-profile');
+              }
             }
           }
         }
+      } catch (error) {
+        console.error('Error in checkUser:', error);
+        setUser(null);
+        setIsGuest(!!localStorage.getItem('guest-mode'));
       }
     };
     checkUser();
-    const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      checkUser();
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return;
+      
+      if (event === 'SIGNED_IN') {
+        setUser(session?.user || null);
+        setIsGuest(false);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setIsGuest(false);
+      }
     });
     // Listen for guest-mode changes in other tabs
     const handleStorage = () => {
@@ -79,6 +118,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
     window.addEventListener('storage', handleStorage);
     return () => {
+      isMounted = false;
       listener?.subscription.unsubscribe();
       window.removeEventListener('storage', handleStorage);
     };

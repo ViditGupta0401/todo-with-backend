@@ -16,6 +16,8 @@ import PopupManager from './components/popups/PopupManager';
 import type { Task, Filter } from './types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { getLocalDate } from './utils/dateUtils';
+import { setupAutoBackup } from './utils/backup';
 import { faDumbbell } from '@fortawesome/free-solid-svg-icons';
 import ClockWidget from './components/ClockWidget';
 import UpcomingEventsWidget from './components/UpcomingEventsWidget';
@@ -26,9 +28,25 @@ import { RoughNotation, RoughNotationGroup } from 'react-rough-notation';
 import { pageview, event } from './utils/analytics';
 import { usePopup } from './context/PopupContext';
 import { supabase } from './utils/supabaseClient';
-import { uploadTasksToSupabase, downloadTasksFromSupabase } from './utils/supabaseSync';
+import {
+  migrateLocalDataToSupabase,
+  downloadTasksFromSupabase,
+  uploadTasksToSupabase,
+  setLocalTasks,
+  getLocalTasks,
+  uploadEventsToSupabase,
+  setLocalEvents,
+  setLocalActiveWidgets,
+  uploadWidgetsToSupabase,
+  setLocalTheme,
+  uploadThemeToSupabase,
+  setLocalQuickLinks,
+  uploadQuickLinksToSupabase,
+  setLocalPomodoroSettings,
+  uploadPomodoroSettingsToSupabase,
+  deleteUserAccount
+} from './utils/supabaseSync';
 import { useNavigate, Routes, Route } from 'react-router-dom';
-import { uploadEventsToSupabase, uploadWidgetsToSupabase, uploadThemeToSupabase, uploadQuickLinksToSupabase, uploadPomodoroSettingsToSupabase } from './utils/supabaseSync';
 import { useUser } from './context/UserContext';
 
 const STORAGE_KEY = 'todo-tracker-tasks';
@@ -85,7 +103,6 @@ function App() {
   const { theme } = useTheme();
   const [showBMI, setShowBMI] = useState<boolean>(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState<boolean>(false);
-  const [showSignUpPopup, setShowSignUpPopup] = useState(false);
   
   const {
     activeWidgets,
@@ -521,7 +538,7 @@ function App() {
     };
   }, [dailyData]);
 
-  const addTask = (text: string, priority: Task['priority'], isRepeating: boolean = false) => {
+  const addTask = async (text: string, priority: Task['priority'], isRepeating: boolean = false) => {
     event({
       action: 'add_task',
       category: 'Tasks',
@@ -544,50 +561,60 @@ function App() {
     
     const updatedTasks = [newTask, ...tasks];
     setTasks(updatedTasks);
+
+    // Sync with backend if authenticated
     if (user && !isGuest) {
-      uploadTasksToSupabase(user.id, updatedTasks);
-      // Immediate upload for persistence
-      supabase.from('tasks').delete().eq('user_id', user.id).then(() => {
-        if (updatedTasks.length > 0) {
-          supabase.from('tasks').insert(updatedTasks.map(t => ({ ...t, user_id: user.id })));
-        }
-      });
+      try {
+        await uploadTasksToSupabase(user.id, updatedTasks);
+      } catch (error) {
+        console.error('Failed to sync task:', error);
+        // On error, make sure local storage is updated
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
+      }
+    } else {
+      // For guest users, just use local storage
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
     }
-    if (!user || isGuest) localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
+    
     updateDailyData(updatedTasks, false);
   };
 
-  const toggleTask = (id: string) => {
+  const toggleTask = async (id: string) => {
     event({
       action: 'toggle_task',
       category: 'Tasks',
       label: 'task_completion'
     });
-    setTasks(prevTasks => {
-      const updatedTasks = prevTasks.map(task => {
-        if (task.id === id) {
-          const now = Date.now();
-          return {
-            ...task,
-            completed: !task.completed,
-            lastCompleted: !task.completed ? now : task.lastCompleted
-          };
-        }
-        return task;
-      });
-      if (user && !isGuest) {
-        uploadTasksToSupabase(user.id, updatedTasks);
-        supabase.from('tasks').delete().eq('user_id', user.id).then(() => {
-          if (updatedTasks.length > 0) {
-            supabase.from('tasks').insert(updatedTasks.map(t => ({ ...t, user_id: user.id })));
-          }
-        });
+
+    const updatedTasks = tasks.map(task => {
+      if (task.id === id) {
+        const now = Date.now();
+        return {
+          ...task,
+          completed: !task.completed,
+          lastCompleted: !task.completed ? now : task.lastCompleted
+        };
       }
-      if (!user || isGuest) localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
-      updateDailyData(updatedTasks, false);
-      
-      return updatedTasks;
+      return task;
     });
+
+    setTasks(updatedTasks);
+
+    // Sync with backend if authenticated
+    if (user && !isGuest) {
+      try {
+        await uploadTasksToSupabase(user.id, updatedTasks);
+      } catch (error) {
+        console.error('Failed to sync task toggle:', error);
+        // On error, make sure local storage is updated
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
+      }
+    } else {
+      // For guest users, just use local storage
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
+    }
+
+    updateDailyData(updatedTasks, false);
   };
 
   const deleteTask = (id: string) => {
@@ -807,12 +834,8 @@ function App() {
 
   useEffect(() => {
     const checkDateChange = () => {
-      const now = new Date();
-      const today = new Date(now);
-      if (now.getHours() < 5) {
-        today.setDate(today.getDate() - 1);
-      }
-      const todayStr = format(today, 'yyyy-MM-dd');
+      const localDate = getLocalDate();
+      const todayStr = format(localDate, 'yyyy-MM-dd');
       
       const lastKnownDate = currentDateRef.current;
       
@@ -899,6 +922,8 @@ function App() {
   // Track initial page view
   useEffect(() => {
     pageview(window.location.pathname + window.location.search);
+    // Initialize auto-backup
+    setupAutoBackup(30); // Backup every 30 minutes
   }, []);
 
   useEffect(() => {
@@ -910,13 +935,15 @@ function App() {
     // eslint-disable-next-line
   }, []);
 
-  // Automatically show auth popup for new/incognito users, but only if not already open
+  // Auth popup for new/incognito users
   useEffect(() => {
-    // Only show auth popup if not on the get started page
-    if (!user && !isGuest && activePopup !== 'auth' && window.location.pathname !== '/get-started') {
+    // Only show auth popup on initial load if no user and not guest
+    if (!user && !isGuest) {
+      console.log('Initial auth popup check - no user detected');
+      closePopup();
       openPopup('auth');
     }
-  }, [user, isGuest, openPopup, activePopup]);
+  }, [user, isGuest, openPopup, closePopup]);
 
   // Automatically close the auth popup when the user becomes authenticated (including after OAuth login).
   useEffect(() => {
@@ -925,18 +952,31 @@ function App() {
     }
   }, [user, activePopup, closePopup]);
 
+  // Set initial auth popup state
+  useEffect(() => {
+    const wasLoggedIn = localStorage.getItem('was-logged-in');
+    if (wasLoggedIn === 'true' && !user) {
+      // Show Sign In for users who have logged out
+      if (document.querySelector('[data-auth-popup]')) {
+        const event = new CustomEvent('show-signin');
+        document.dispatchEvent(event);
+      }
+    }
+    if (user) {
+      localStorage.setItem('was-logged-in', 'true');
+    }
+  }, [user]);
+
   // Lazy load tasks from Supabase for logged-in users
   useEffect(() => {
     if (!user || isGuest) return;
     let cancelled = false;
     const fetchInitialTasks = async () => {
       setLoadingMoreTasks(true);
-      const page = 0;
-      const pageSize = 50;
-      const data = await downloadTasksFromSupabase(user.id, { limit: pageSize, offset: page * pageSize });
+      const data = await downloadTasksFromSupabase(user.id);
       if (!cancelled) {
         setTasks(data);
-        setHasMoreTasks(data.length === pageSize);
+        setHasMoreTasks(false);  // Since we're not using pagination anymore
         taskPageRef.current = 1;
         setLoadingMoreTasks(false);
       }
@@ -954,13 +994,11 @@ function App() {
     const handleIntersect = async (entries: IntersectionObserverEntry[]) => {
       if (entries[0].isIntersecting && !loadingMoreTasks && hasMoreTasks) {
         setLoadingMoreTasks(true);
-        const pageSize = 50;
-        const page = taskPageRef.current;
-        const data = await downloadTasksFromSupabase(user.id, { limit: pageSize, offset: page * pageSize });
+        const data = await downloadTasksFromSupabase(user.id);
         if (!cancelled) {
           setTasks(prev => [...prev, ...data]);
-          setHasMoreTasks(data.length === pageSize);
-          taskPageRef.current = page + 1;
+          setHasMoreTasks(false);
+          taskPageRef.current += 1;
           setLoadingMoreTasks(false);
         }
       }
@@ -977,36 +1015,74 @@ function App() {
   const handleLogout = async () => {
     setShowLogoutPopup(false);
     setShowUserMenu(false);
+    
+    // First navigate to get started page
+    navigate('/get-started', { replace: true });
+    
     // Clear all localStorage guest/user state
     localStorage.removeItem('guest-mode');
+    
+    // Small delay to ensure navigation completes
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Log out from Supabase
     await logout();
-    // Reset all local app state if needed (optionally clear tasks, widgets, etc. from localStorage)
-    // Redirect to get started and force auth popup
+    
+    // Force auth popup to show
     setForceShowAuthPopup(true);
-    navigate('/get-started', { replace: true });
+    openPopup('auth');
   };
+
   // Delete account functionality
   const handleDeleteAccount = async () => {
-    setShowDeletePopup(false);
-    setShowUserMenu(false);
     if (!user) return;
-    const userId = user.id;
-    await supabase.from('tasks').delete().eq('user_id', userId);
-    await supabase.from('events').delete().eq('user_id', userId);
-    await supabase.from('widgets').delete().eq('user_id', userId);
-    await supabase.from('theme').delete().eq('user_id', userId);
-    await supabase.from('quick_links').delete().eq('user_id', userId);
-    await supabase.from('pomodoro_settings').delete().eq('user_id', userId);
-    await supabase.from('widget_layouts').delete().eq('user_id', userId);
-    await supabase.from('profiles').delete().eq('id', userId);
-    await supabase.auth.admin.deleteUser(userId);
-    // Clear all localStorage guest/user state
-    localStorage.removeItem('guest-mode');
-    await logout();
-    // Reset all local app state if needed (optionally clear tasks, widgets, etc. from localStorage)
-    setForceShowAuthPopup(true);
-    navigate('/get-started', { replace: true });
+
+    try {
+      setShowDeletePopup(false);
+      setShowUserMenu(false);
+
+      // First navigate to get started page
+      navigate('/get-started', { replace: true });
+      
+      // Small delay to ensure navigation completes
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Delete all user data
+      await deleteUserAccount(user.id);
+      
+      // Delete the actual user account
+      const { error } = await supabase.rpc('delete_user_data');
+      
+      if (error) {
+        console.error('Error deleting account:', error);
+        alert('Failed to delete account. Please try again or contact support.');
+        return;
+      }
+      
+      // Clear all local storage
+      const keysToRemove = [
+        'todo-tracker-tasks',
+        'upcoming-events-data',
+        'active-widgets',
+        'theme',
+        'quick-links',
+        'pomodoroSettings',
+        'guest-mode',
+        'latestUpdateVersion',
+        'todo-tracker-daily-data',
+        'last-saved-date'
+      ];
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+
+      // Log out and show auth popup
+      await logout();
+      setForceShowAuthPopup(true);
+      openPopup('auth');
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      alert('Failed to delete account. Please try again or contact support.');
+      setShowDeletePopup(true);
+    }
   };
 
   // On /get-started, open auth popup if forceShowAuthPopup is true or if not authenticated/guest
@@ -1064,7 +1140,7 @@ function App() {
         {isGuest && (
           <button
             className="fixed top-4 right-4 z-[9999] p-2 rounded-lg bg-gradient-to-tr from-cyan-400 to-cyan-600 hover:from-cyan-500 hover:to-cyan-700 text-white shadow-lg focus:outline-none focus-visible:ring-4 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
-            onClick={() => openPopup('signup')}
+            onClick={() => openPopup('auth')}
             aria-label="Open sign up popup"
             tabIndex={0}
           >

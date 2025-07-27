@@ -35,8 +35,12 @@ export const usePomodoroSettings = () => {
   return ctx;
 };
 
+import { downloadPomodoroSettingsFromSupabase } from '../utils/supabaseSync';
+
 export const PomodoroSettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { user: currentUser, isGuest: isGuestUser } = useUser();
   const [settings, setSettings] = useState<PomodoroSettings>(() => {
+    // First try to get from localStorage
     const saved = localStorage.getItem('pomodoroSettings');
     if (!saved) {
       const legacy = localStorage.getItem('pomodoro');
@@ -48,6 +52,32 @@ export const PomodoroSettingsProvider: React.FC<{ children: ReactNode }> = ({ ch
     }
     return saved ? JSON.parse(saved) : defaultSettings;
   });
+
+  // Load settings from Supabase when user logs in
+  React.useEffect(() => {
+    const loadSettings = async () => {
+      if (user && !isGuest) {
+        try {
+          const supabaseSettings = await downloadPomodoroSettingsFromSupabase(user.id);
+          if (supabaseSettings && Object.keys(supabaseSettings).length > 0) {
+            // Merge with defaults to ensure all required fields exist
+            const mergedSettings = {
+              ...defaultSettings,
+              ...supabaseSettings
+            };
+            setSettings(mergedSettings);
+            localStorage.setItem('pomodoroSettings', JSON.stringify(mergedSettings));
+          } else if (settings) {
+            // If no settings in Supabase but we have local settings, upload them
+            await uploadPomodoroSettingsToSupabase(user.id, settings);
+          }
+        } catch (error) {
+          console.error('Error loading Pomodoro settings:', error);
+        }
+      }
+    };
+    loadSettings();
+  }, [currentUser, isGuestUser]);
 
   const { user, isGuest } = useUser();
 
